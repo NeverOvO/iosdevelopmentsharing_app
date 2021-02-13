@@ -277,4 +277,98 @@ NSObject是objective-c 中所有类的根类
 2:可以在初始化方法中设置实例变量为默认值，然后调用别的方法来设置实例变量的值
 
     """},
+  {'title' : '第三章（2）' , 'message' : """
+   使用继承的程序实例：
+
+追加定义一个带静音功能的类MuteVolume
+
+MuteVolume.h(版本1)：
+//父类是定义好的Volume，所以引入该类
+//父类Volume的父类是NSObject，所以MuteVolume也是NSObject的派生类
+#import "Volume.h"
+@interface MuteVolume : Volume
+-(id)mute;
+@end
+
+MuteVolume.m(版本1)：
+//对于MuteVolume.h接口类的实现
+#import "MuteVolume.h"
+@implementation MuteVolume
+-(id)mute{
+    val = min;
+    return self;
+}
+@end
+
+测试类：
+#import "MuteVolume.h"
+#import <stdio.h>
+//用于测试Volume类的函数：
+int main(void) {
+    id v;
+    char buf[8];
+    v= [[MuteVolume alloc] initWithMin:0 max:10 step:2];
+    while(scanf("%s",buf)){
+        switch (buf[0]) {
+            case 'u': //升高音量
+                [v up];
+                break;
+            case ‘d’://降低音量
+                [v down];
+                break;
+            case ‘m’://静音
+                [v mute];
+                break;
+            case ‘q’://退出
+                return 0;
+        }
+        printf("Volume = %d\n",[v value]);
+    }
+    return 0;
+}
+
+编译的时候 编译.m文件即可
+% clang main.m Volume. m MuteVolume.m -framework Foundation
+
+
+
+ das 
+方法重写的例子：
+该例子实现两个功能，第一个功能，再次收到mute消息时，音量恢复原值
+				   第二个功能，在静音状态下收到up或者down消息时，返回音量最小值，并作出更改
+
+MuteVolume.h（版本2）:
+//父类是定义好的Volume，所以引入该类
+//父类Volume的父类是NSObject，所以MuteVolume也是NSObject的派生类
+#import "Volume.h"
+@interface MuteVolume : Volume{
+    BOOL muting;//判断是否为静音状态
+}
+-(id)initWithMin:(int)a max:(int)b step:(int)s;
+-(int)value;
+-(id)mute;
+@end
+
+MuteVolume.m(版本2)：
+//对于MuteVolume.h接口类的实现
+#import "MuteVolume.h"
+@implementation MuteVolume
+-(id)initWithMin:(int)a max:(int)b step:(int)s{
+    self =[super initWithMin:a max:b step:s];
+    if(self !=nil)
+        muting = NO;
+    return 0;
+}
+-(int)value{
+    return muting ? min : val;
+}
+-(id)mute{
+    muting = !muting;
+    return self;
+}
+@end
+
+mian函数同上
+
+    """},
 ];
