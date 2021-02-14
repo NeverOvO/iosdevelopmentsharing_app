@@ -371,4 +371,107 @@ MuteVolume.m(版本2)：
 mian函数同上
 
     """},
+  {'title' : '第三章（3）' , 'message' : """
+   3.4继承和方法调用
+
+使用self调用方法：
+在一个方法中调用当前类中定义的方法，可以利用self
+self指的是收到当前信息的实例变量
+
+使用super调用方法：
+super调用的是父类的方法，而至于到底调用了哪个方法则是由编译时类的继承关系决定的
+
+测试程序：
+
+ 测试程序中有三个类ABC，类A中定义了方法method1和method2
+类B中对method1进行了重新，通过self调用了method1，通过super调用了method2
+类C重写了method1
+
+#import <Foundation/Foundation.h>
+#import <stdio.h>
+
+@interface A:NSObject
+-(void)method1;
+-(void)method2;
+@end
+
+@implementation A
+-(void)method1{
+    printf("method1 of ClassA\n");
+}
+-(void)method2{
+    printf("method2 of ClassA\n");
+}
+@end
+
+@interface B:A
+-(void)method2;
+@end
+
+@implementation B
+-(void)method2{
+    printf("method2 of ClassB\n");
+    printf("self -->");
+    [self method1];
+    printf("super -->");
+    [super method2];
+}
+@end
+
+@interface C:B
+-(void)method1;
+@end
+
+@implementation C
+-(void)method1{
+    printf("method1 of ClassC\n");
+}
+@end
+
+int main(void){
+    id x = [[B alloc] init];
+    id y = [[C alloc] init];
+    printf("---instance of B ---\n");
+    [x method1];
+    [x method2];
+    printf("---instance of C ---\n");
+    [y method1];
+    [y method2];
+    return 0;
+}
+
+3.5 方法定义时的注意事项
+1.局部方法：
+实现接口声明中的方法时，可把具备独立功能的部分独立出来定义成子方法
+
+例子：
+类ClickVolume是类Volume的一个子类，他的主要功能是当音量发生变化（提高或降低）时发出提示音，提高和降低音量时发出的提示音使用一个共同的方法playClick,该功能不会再其他地方用到，所以我们将它定义成一个局部方法，不在接口中声明
+
+
+@import "Volume.h"
+
+@interface ClickVolume :Volume
+-(id)up;
+-(id)down;
+@end
+
+@implementation ClickVolume
+-(void)playClick{
+    /*  发出提示音*/
+}
+-(id)up{
+    [self playClick];
+    return [super up];
+}
+-(id)down{
+    [self palyClick];
+    return [super down];
+}
+@end
+
+2.指定初始化方法
+
+指定初始化方法，就是指能确保所有实例变量都被初始化的方法
+
+    """},
 ];
