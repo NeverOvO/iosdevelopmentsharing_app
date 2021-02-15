@@ -474,4 +474,159 @@ int main(void){
 指定初始化方法，就是指能确保所有实例变量都被初始化的方法
 
     """},
+  {'title' : '第四章（1）' , 'message' : """
+   1.动态绑定
+
+1.1什么是动态绑定：
+动态绑定的例子：
+#import <Foundation/Foundation.h>
+#import <stdio.h>
+
+@interface A:NSObject
+-(void)whoAreyou;
+@end
+
+@implementation A
+-(void)whoAreyou{
+    printf("Im A");
+}
+@end
+
+@interface B:NSObject
+-(void)whoAreyou;
+@end
+
+@implementation B
+-(void)whoAreyou{
+    printf("Im B");
+}
+@end
+
+int main(void){
+    id obj;
+    int n;
+    scanf("%d",&n);
+    switch (n) {
+        case 0:
+            obj = [[A alloc] init];
+            break;
+        case 1:
+            obj =[[B alloc] init];
+            break;
+        case 2:
+            obj = [[NSObject alloc] init];
+            break;
+        default:
+            break;
+    }
+    [obj whoAreyou];
+    return 0;
+}
+
+执行该程序，输入0时终端显示Im A。输入1时终端显示Im B，但输入2时，程序就会错误
+￼
+
+出错的原因在于类NSObject的实例对象中没有实现whoAreyou方法
+
+
+动态绑定：指在程序执行时才确定对象的属性和需要相应的消息
+
+1.2 多态
+
+多态：指同一操作作用于不同的类的实例时，将产生不同的执行结果，即不同类的对象收到相同的消息，也能得到不同的结果
+
+
+2.作为类型的类：
+
+2.1把类作为一种类型
+
+类的类型既可以被用作变量的类型，也可以作为方法或者函数的参数和返回值的类型使用。如：
+Volume *V；
+MuteVolume *mute；
+
+2.2空指针 nil
+
+Objc中 nil表示一个空的对象，这个对象的指针指向空，nil是指向id类型的指针，指为0，初始化方法失败时通常会返回nil
+
+调用端会采用如下语句来判断方法调用是否成功：
+if ([list entryForKey :”NeXT”] !=nil) …
+在C语言中 null也为空或者0 nil与其相同，可以进行省略
+if ([list entryForKey :”NEXT”] ) …
+效果相同
+
+3.静态类型检查
+
+id类型时一种通用的对象类型，类似于C语言的void*，可以用来存储任何类型的对象
+在程序变得灵活的同时，可能隐含错误，编译器不会对id类进行检查
+
+类型检查的一个例子
+//8.11 4.2.3
+#import <Foundation/Foundation.h>
+#import <stdio.h>
+
+@interface A:NSObject
+-(void)whoAreyou;
+@end
+
+@implementation A
+-(void)whoAreyou{
+    printf("Im A\n");
+}
+@end
+
+@interface B:A
+-(void)whoAreyou;
+-(void)sayHello;
+@end
+
+@implementation B
+-(void)whoAreyou{
+    printf("Im B\n");
+}
+-(void)sayHello{
+    printf("Hello\n");
+}
+@end
+
+@interface C :NSObject
+-(void)printName;
+@end
+
+@implementation C
+-(void)printName{
+    printf("Im C\n");
+}
+@end
+
+int main(void){
+    A *a,*b;
+    C *c;
+    
+    a= [[A alloc] init];
+    b= [[B alloc] init];
+    c= [[C alloc] init];
+    [a whoAreyou];
+    [b whoAreyou];
+    [c printName];
+    
+    return 0;
+}
+
+4.静态类型检查的总结
+
+（1）对于id类型的变量，调用任何方法都能通过编译（当然调用不恰当的方法会出现运行时错误）
+	id数据类型可以用来存储任何类型的对象，正式由于这个原因，编译器并不知道id中存储的是哪个类的变量，所以无法通过-》来获取类的实例变量或方法，也就没法完成类型检查/
+（2）id类型的变量和被定义为特定类的变量之间是可以互相赋值的
+	这里的赋值是一个广义的含义，包括方法或者函数的参数的传递，返回值的接收等。
+（3）被定义为特定类对象的变量（静态类型），如果调用了类或父类中未定义的方法，编译器就会提示警告
+（4）若是静态类型的变量，子类类型的实例变量可以赋值给父类类型的实例变量
+	需要注意的是，如果这个变量中调用了子类特有的方法，如（3）所示，会提示警告信息
+（5）若是静态类型的变量，父类类型的实例变量不可以赋值给子类类型的实例变量
+	因为父类类型的变量无法对应子类中特有的方法，所以这种赋值会提示警告信息
+（6）若要判断到底是哪个类的方法被执行类，不要看变量所声明的类型，而要看实际执行时这个变量的类型
+（7）id类型并不是（NSObject*）类型
+
+
+
+    """},
 ];
