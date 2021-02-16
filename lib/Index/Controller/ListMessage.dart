@@ -629,4 +629,167 @@ int main(void){
 
 
     """},
+  {'title' : '第四章（2）' , 'message' : """
+   1.编程中的类型定义
+1.1.签名不一致的情况
+消息选择器中并不包含参数和返回值的类型的信息
+消息选择器和这些类型信息结合起来构成签名
+签名被用于在运行时标记一个方法
+
+Cocoa提供了类NSMethodSignature，以面向对象的方式来记录方法的参数个数，参数类型和返回值类型等消息。
+
+OBjectiveC中选择器相同的消息，参数和返回值的类型也应该是相同的
+
+1.2.类的前置声明
+
+当我们定义一个类的时候，有时候会将类实例变量，类方法的参数和返回值的类型指定为另外一个类，这种情况如何定义：
+
+方法1: 在新定义的类的接口文件中引入原有类的头文件
+例：
+#import <Foundation/Foundation.h>
+#import “Volume.h”
+
+@interface AudioPlayer : NSObject{
+    Volume *theVolume;
+    ...
+}
+-(Volume *)volume;
+...
+
+上述方法肯定可行，但是存在缺点，首先头文件除了类名之外，还有各种各样的其他信息的定义，另外头文件中还有可能引入了其他类的头文件，如此循环和大大增大编译时的负担
+
+方法2:
+通过编译指令@class 告知编译器Volume是一个类名，这种写法被叫做类的前置声明
+#import <Foundation/Foundation.h>
+
+@class Volume;
+
+@interface AudioPlayer : NSObject
+...
+
+class指令的后面可以一次接多个类，不同的类之间用“，”来分割，最后用“；”来标识前置声明的结束。
+例如：
+@class NSString,NSArray,NSMutableArray;
+@class Volume;
+
+通过使用@Class可以提升程序整体的编译速度，但要注意的是，如果新定义的类中要使用原有类的具体成员或方法，就一定要引入原有类的头文件。
+
+
+1.3.强制类型转换的使用示例
+
+
+2.实例变量的数据封装
+
+2.1实例变量的访问权限
+
+三原色类程序：
+
+三原色类的接口部分（RGB.h）：
+#import <Foundation/NSObject.h>
+
+@interface RGB : NSObject{
+    unsigned char red ,green ,blue;
+}
+-(id) initWithRed:(int)r green:(int)g blue:(int)b;
+-(id)blendColor:(RGB *)color;
+-(void)print;
+
+@end
+
+
+三原色类的实现部分（RGB.m）
+#import "RGB.h"
+#import <stdio.h>
+
+static unsigned char roundUChar(int v){
+    if(v < 0)
+        return 0;
+    if(v > 255)
+        return 255;
+    return (unsigned char)v;
+}
+
+@implementation RGB
+-(id)initWithRed:(int)r green:(int)g blue:(int)b{
+    if((self = [super init]) !=nil){
+        red = roundUChar(r);
+        green = roundUChar(g);
+        blue = roundUChar(b);
+    }
+    return self;
+}
+-(id)blendColor:(RGB *)color{
+    red = ((unsigned int)red + color ->red) /2;
+    green =((unsigned int)green + color->green)/2;
+    blue = ((unsigned int)blue+color->blue)/2;
+    return self;
+}
+-(void)print{
+    printf("(%d %d %d)",red ,green,blue);
+}
+
+@end
+
+测试三原色类用的main程序：
+#import "RGB.h"
+int main(void){
+    RGB *u,*w;
+    
+    u=[[RGB alloc] initWithRed:255 green:127 blue:127];
+    w=[[RGB alloc]initWithRed:0 green:127 blue:64];
+    [u print];
+    [w print];
+    [[u blendColor:w]print];
+    return 0;
+}
+
+方法blendColor：中直接通过-》访问了参数color内部的实例变量
+之所以可以访问，是因为参数color的类型和blendColor所在类的类型益智
+
+2.2访问器
+
+例如类中有一个float类型，变量名叫weight的属性，从类外部访问这个属性的方法应和属性同名
+-（float）weight
+
+定义修改该属性的方法时，可以用set作为前缀，之后接要更改的属性的名称，属性名的第一个字母要求大些
+-（void）setWeight：（float）value
+
+对应的getter setter方法：
+-（unsigne char）red{return red;}
+-(void)setRed:(unsigned char)newvalue{ red = newvalue ;}
+
+2.3实例变量的可见性：
+ObjevtiveC中有四种可见性修饰符：
+
+@private
+	只能在声明它的类内访问，子类中不能访问，可以在方法中通过-》来访问同一个类的实例对象
+@protected
+	能够被声明它的类和任何子类访问，类方法中可以通过-》来访问本类实例对象的实例变量，没有显式指定可见性的实例变量都是此属性
+@public	
+	作用范围最大，本类和其他类都可以直接访问
+@package
+	类所在的框架内，可以想@public一样访问，而框架外则同@private一样，不允许访问
+
+
+2.4在实现部分中定义实例变量：
+
+Xcode4.2之后的编译器clang，允许在实现部分中定义类的实例变量
+
+上述三原色类子中，可以采用如下的方法定义：
+//接口部分
+@interface RGB : NSObject
+-(id) initWithRed:(int)r green:(int)g blue:(int)b;
+-(id)blendColor:(RGB *)color;
+-(void)print;
+@end
+
+//实现部分
+@implementation RGB{
+	unsigned char red,green,blue;//实例变量
+}
+-(id)initWithRed:(int)r green:(int)g blue:(int) b
+…
+
+@end
+    """},
 ];
