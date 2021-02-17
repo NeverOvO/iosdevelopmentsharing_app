@@ -792,4 +792,92 @@ Xcode4.2之后的编译器clang，允许在实现部分中定义类的实例变�
 
 @end
     """},
+  {'title' : '第四章（3）' , 'message' : """
+   1.类对象
+
+1.1什么是类对象
+
+objc中只有类方法的概念，没有类变量的概念
+
+1.2类对象的类型
+
+id类型可以表示任何对象，类对象也可以用id类型来表示，Objc中还专门定义了一个Class类型来表示类对象，所有的类对象都是Class类型，Class类型和id一样都是指针类型，只是一个地址，并不需要了解实际指向的内容。
+
+1.3类方法的定义
+
+实例方法在接口声明和实现文件中都以“-”开头，类方法则于此相反，以“+”开头，alloc方法的定义如下：
++（id）alloc；
+
+类方法的语法比较简单，但实际使用时要注意一下几点：
+	首先，类方法中不能访问类中定义的实例变量和实例方法。类对象只有一个，类的实例对象可以有任意个。所以如果类对象可以访问实例变量，就会不清楚访问的到底是哪个实例对象的变量。类方法中也不能访问实例方法。
+	其次，类方法在执行时用self代表类类对象自身，因此可以通过给self发送消息的方式来调用类中的其他类方法。
+	调用父类的类方法时，可以使用super
+
+1.4类变量
+
+Objc通过在实现文件中定义静态变量的方法来代替类变量
+Objc在实现文件中定义了静态变量后，该变量的作用域就变成只在该文件内有效
+Objc中类变量原则上只在类的内部实现中使用，在进行设计时要充分考虑到这一点
+
+1.5类对象的初始化
+
+Objc中实例对象的生成一般分为2步，第一步是通过alloc为对象分配内存，第二部是对内存进行初始化，也就是对对象的各个成员赋予初值。可以通过给实例对象发送init消息来完成第二步的初始化。
+
+Objc的跟类NSObject中存在一个initialize类方法，可以通过使用这个方法来为各类对象进行初始化。在每个类接受到消息之前，为之个类调用一次initialize，调用之前要先调用父类initialize方法，每个类的initialize方法只被调用一次
+
+因为在初始化的过程中会自动调用父类的initialize方法，所以子类的initialize方法不用显式调用父类的initialize方法
+
+例：
+
+//8.13 4.5.5
+#import <Foundation/Foundation.h>
+#import <stdio.h>
+
+@interface A:NSObject
++(void)initialize;
+@end
+
+@implementation A
++(void)initialize{
+    printf("Im A\n");
+}
+@end
+
+@interface B :A
++(void)initialize;
++(void)setMessage:(const char *)msg;
+-(void)sayHello;
+@end
+
+static const char *myMessage ="Hello";
+
+@implementation B
++(void)initialize{
+    printf("Im B\n");
+}
++(void)setMessage:(const char *)msg{
+    myMessage =msg;
+}
+-(void)sayHello{
+    printf("%s \n",myMessage);
+}
+@end
+
+int main(void){
+    id obj = [[B alloc]init];
+    [obj sayHello];
+    [B setMessage:"Have a good day"];
+    [obj sayHello];
+    return 0;
+}
+结果：
+￼
+
+
+1.6初始化方法的返回值
+
+初始化方法的返回值都应该设为id类型
+
+
+    """},
 ];
