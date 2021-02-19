@@ -880,4 +880,181 @@ int main(void){
 
 
     """},
+  {'title' : '第五章（1）' , 'message' : """
+  1.动态内存管理
+
+1.1内存管理的必要性
+
+程序未能释放已经不再使用的内存叫做 内存泄漏
+有效地管理内存，会提高程序的执行效率
+如果访问了已经被释放的内存，则会造成数据错误，严重时甚至会导致程序异常终止
+指针所指向的对象已被释放或收回的情况下，该指针就称为 悬垂指针或野指针
+
+1.2引用计数、自动引用计数和自动垃圾回收
+
+Cocoa环境的ObjectiveC提供了一种动态的内存管理方式，称为 引用计数
+这种方法会跟踪每个对象被引用的次数，当对象的引用次数为0时，系统就会释放这个对象所占用的内存。这本书吧这种内存管理方式称为 基于引用计数的内存管理。
+
+比引用计数内存管理更高级一点的就是自动引用计数 ARC 的内存管理
+￼
+
+
+2.手动引用计数内存管理
+
+2.1引用计数
+
+retain定义：
+-(id)retain;
+release定义：
+-(oneway void)release;
+dealloc定义：
+-(void)dealloc
+
+retain是 保持的意思，给一个对象发送retain消息，就意味着保持这个对象，生成对象或通过给对象发送retain消息来保持对象这种状态，都可以说是拥有这个对象的所有权。拥有实例所有权的对象为 所有者
+
+2.2测试引用计数的例子：
+
+retain和release是类NSObject的实例方法，方法retainCount可以获得对象引用计数的当前值。retainCount方法没有太大的实用价值，一般在调试程序的时候使用。
+
+允许此程序前，先关闭ARC：
+￼
+
+//8.15 5.2.2 内存管理测试
+#import <Foundation/NSObject.h>
+#import <stdio.h>
+
+int main()
+{
+    id obj = [[NSObject alloc] init];
+    printf("init : %d \n",(int)[obj retainCount]);
+    [obj retain];
+    printf("init : %d \n",(int)[obj retainCount]);
+    [obj retain];
+    printf("init : %d \n",(int)[obj retainCount]);
+    [obj release];
+    printf("init : %d \n",(int)[obj retainCount]);
+    [obj release];
+    printf("init : %d \n",(int)[obj retainCount]);
+    [obj release];
+    
+    return 0;
+}
+
+结果：
+￼
+
+2.3释放对象的方法：
+
+在自定义类的时候，如果类的实例变量是一个对象类型，那么在销毁类的对象的时候。也要给类的实例变量发送release消息
+释放一个类的实例对象是，为类彻底释放该实例对象所保持的所有对象的所有权，需要为该类重写dealloc方法，在其中释放已经分配的资源，放弃实例变量的所有权。一位最终释放内存的是dealloc方法所以不能重写release方法
+-(void)dealloc //重写的是dealloc方法而不是release方法
+{	
+	/*
+		这里通过release方法放弃子类中所有实例变量的所有权。
+		其他用于释放前的善后操作也都写在这里
+	*/
+	[super dealloc];
+}
+
+2.4访问方法和对象所有权
+
+在通过访问方法等改变拥有实例变量所有权的对象时，必须注意实例变量引用计数的变化，合理安排release和retain的先后顺序
+
+例：setMyValue方法：
+-(void)setMvalue:(id) obj{
+	[myValue release];
+	myValue = [obj retain];
+}
+
+绝大多数情况下这个方法没有问题，只有在参数obj和myValue是同一个对象的时候会出错
+
+安全的setter写法：
+￼
+
+如果不考虑对象的所有权，而只是单纯的赋值的话，则不需要保持和释放。
+不考虑所有权的setter方法：
+-(void)setMyValue:(id)obj
+{
+	myValue =obj;
+}
+
+
+2.5自动释放
+
+Cocoa环境的Objec提供了一种对象自动释放的机制，这种机制的基本思想是把虽有需要发送release消息的对象记录下来，等到需要释放这些对象时，会给这些对象一起发送release消息。
+其中，类NSAutoreleasePool（自动释放池）就起到了记录的作用
+
+首先让我们生成一个NSAutoreleasePool的实例对象。当向一个对象发送autorelease消息时，实际上就会将该对象添加到NSAutoreleasePool中，将它标记为以后释放。
+这个时候，因为这个对象没有被释放，所以还可以继续使用，对象引用计数的值也没有变化，但发送autorelease消息和发送release消息一样，相当于宣布放弃了对象的所有权。这样一来，当自动释放池被销毁时，池中记录的所有对象就都会被发送release消息
+
+autorelease放大的定义如下：
+
+-(id)autorelease
+
+其返回值时接受对象的消息。
+本书中把自动释放池中登陆的实际上相当于放弃了所有权的对象称为临时对象。
+
+自动释放池的典型用法如下：
+
+id pool =[[NSAutoreleasePool alloc] init];
+/*
+	在此进行一系列操作
+	给临时对象发送autorelease消息。
+*/
+[pool release]; //销毁自动释放池，自动释放池中所有的对象也被销毁
+
+
+2.6使用自动释放池时需要注意的地方
+
+autorelease虽然时NSObject类的方法，但必须和类NSAutoreleasePool一起使用
+
+某些需要长时间允许的代码段或大量使用临时对象的代码段可以通过定义临时的自动释放池来提高内存的利用率，例如：一个大量使用临时变量的循环中，经常会在循环开始时创建自己的自动释放池，在循环结束时释放这个自动释放池：
+
+while (…){
+	id pool = [[NSAutoreleasePoll alloc] init];
+	/*
+	再次进行一系列操作
+	*/
+	[pool release];
+}
+
+但是要注意的是，如果在循环过程中通过continue或break跳出循环的话，将可能导致自动释放池本身没有释放掉。
+另外，循环外也可以使用循环内生成的临时对象，但需要事先在循环给对象发送retain消息，同时在循环外给对象发送autorelease消息。
+
+
+2.7临时对象的生产
+
+当你使用alloc init方法创建一个对象时，该对象的初始引用计数位1，当不再使用该对象时，你要负责销毁它。
+例如Cocoa里用于处理字符串的类NSString，由UTF-8 编码的C风格字符串生产NSString对象的方法有2个
+
+-(id)initWithUTF8String:(const char *)bytes;
+alloc生成的实例对象的初始化方法，生成的实例对象的初始引用计数为1.
++(id)stringWithUTF8String:(const char *)bytes;
+生成临时变量的类方法，生成的实例对象会被自动加入到自动释放池中
+
+这种生成临睡对象的类方法没在OnjectiveC中称为便利构造函数 或 便利构造器，一些面向对象的语言会把生成对象的函数叫做构造函数，以和普通的函数进行区分。把在内部调用别的构造函数而生成的构造函数叫做便利构造函数。
+
+在objectivC语言中，便利构造函数指的就是这种利用alloc、init和autorelease生成临时对象的类方法。
+
+2.8运行回路和自动释放池
+
+典型的图形界面应用程序（GUI）往往会在休眠中等待用户操作，例如 操作时表或者键盘点击菜单按钮等，在用户发出动作之前，程序将一直处于空闲状态。当点击事件发生后，程序会被唤醒并开始工作，执行某些必要的操作以响应这一事件。处理完这一事件后，程序又回返回到休眠状态并等待下一个事件的到来。这个过程被叫做运行回路
+
+2.9常量对象
+
+内存中常量对象的空间分配和其他对象不同，他们没有引用计数机制，永远不能释放这些对象，给这些对象发送消息retainCount后，返回的是NSUIntegerMax（值为0Xffffffff，被定义为最大的无符号整数）。
+
+有的时候，我们可能会需要某个类仅能生成一个实例，程序访问到这个类的对象时使用的都是同一个实例对象，在设计模式中这种情况被称为单例模式，Cocoa框架中有很多单例模式的应用
+
+单例模式的实现如下所示，建议定义一个无论何时都能只返回同一个实例对象的类方法。但要注意的是，在继承和多线程的情况下，这个实现还需要完善。
+
++(MyComponent *)sharedMyComponent{
+	static MyComponent *shared;
+	if(shared ==nil)
+		shared = [[MyComponent alloc] init];
+	return shared;
+}
+
+
+    """},
 ];
