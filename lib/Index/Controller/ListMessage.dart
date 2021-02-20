@@ -1057,4 +1057,341 @@ alloc生成的实例对象的初始化方法，生成的实例对象的初始引
 
 
     """},
+  {'title' : '第五章（2）' , 'message' : """
+  1.分数计算器的例子
+
+1.1分数类Fraction
+
+下面让我们在手动引用计数的内存管理方式下，定义一个简单的分数类。并基于这个类做一个支持分数计算的计算器。
+
+分数类的接口部分 Fraction.h
+
+#import <Foundation/NSObject.h>
+
+@class NSString
+
+@interface Fraction :NSObject{
+    int sgn;//sign （符号为）
+    int num;//numerator(分子)
+    int den;//denominator(分母)
+}
+
+//用于生成分数类的临时对象，有两个参数分别用于指定分子和分母
++(id)fractionWithNumerator:(int)n denominatior:(int)d;
+//指定初始化函数，两个参数分别用于初始化分子和分母，分子或分母是负数时，整个分数的符号位就为负。
+-(id)initWithNumerator:(int)n denominator:(int)d;
+//四个方法用于分数的四则运算，计算结果返回Fraction类的一个新对象
+-(Fraction *)add:(Fraction *)obj;
+-(Fraction *)sub:(Fraction *)obj;
+-(Fraction *)mul:(Fraction *)obj;
+-(Fraction *)div:(Fraction *)obj;
+-(NSString *)description;
+
+@end
+
+分数类的实现部分 Fraction.m
+
+#import "Fraction.h"
+#import <Foundation/NSString.h>
+#import <stdlib.h>
+
+@implementation Fraction
+
+static int gcd(int a,int b) //Greatest Common Divisor 最大公约数
+{
+    if(a<b){
+        return gcd(b, a);
+    }
+    if(b == 0)
+        return a;
+    return gcd(b,a%b);
+}
+
+//Local Method
+-(void)reduce{
+    int d;
+    if(num == 0){
+        sgn = 1;
+        den =1;
+        return ;
+    }
+    if(den ==0){
+        //infinity
+        num =1;
+        return ;
+    }
+    if((d =gcd(num, den))==1){
+        return;
+    }
+    num /= d;
+    den /=d;
+}
+
+//生成临时对象
+
++(id)fractionWithNumerator:(int)n denominatior:(int)d   {
+    id f= [[self alloc]initWithNumerator:n denominator:d];
+    return [f autorelease];
+}
+
+#define SIGN(a) (((a)>=0)?1:(-1))
+
+//指定初始化函数
+
+-(id)initWithNumerator:(int)n denominator:(int)d{
+    if((self =[super init]) != nil){
+        sgn =SIGN(n) *SIGN(d);
+        num =abs(n);
+        den = abs(d);
+        [self reduce];
+    }
+    return self;
+}
+-(Fraction *)add:(Fraction *)obj{
+    int n,d;
+    if(den ==obj ->den){
+        n =sgn *num +obj ->sgn *obj ->num;
+        d=den;
+    }
+    else{
+        n =sgn *num *obj ->den+obj ->sgn *obj->num*den;
+        d =den*obj->den;
+    }
+    return [Fraction fractionWithNumerator:n denominatior:d];
+}
+-(Fraction *)sub:(Fraction *)obj{
+    Fraction *tmp;
+    int n =-1*obj ->sgn *obj->num;
+    tmp=[Fraction fractionWithNumerator:n denominatior:obj->den];
+    return [self add:tmp];
+}
+-(Fraction *)mul:(Fraction *)obj{
+    int n=sgn *obj->sgn * num *obj ->num;
+    int d = den*obj->den;
+    return [Fraction fractionWithNumerator:n denominatior:d];
+}
+-(Fraction *)div:(Fraction *)obj{
+    int n=sgn*obj->sgn*num*obj->den;
+    int d = den*obj->num;
+    return [Fraction fractionWithNumerator:n denominatior:d];
+}
+-(NSString *)description{
+    int n=(sgn >=0)?num:-num;
+    return (den == 1)?[NSString stringWithFormat:@"%d",n]:[NSString stringWithFormat:@"%d/%d",n,den];
+}
+
+@end
+
+类方法fractionWithNumerator:denominator:先调用初始化方法生成一个分数对象后向其发送autorelease消息把这个对象加入自动释放池中。这就是上节中介绍到的便利构造函数的一个实际用例
+初始化函数initWithNumberator:denominator:被用于初始化实例对象。分子分母都是非负整数面，整个分数的符号为由sgn来表示。同时也会对分子分母进行月份，生成的对象的所有者就是调用这个函数的对象
+add方法：参数是一个Fraction类型的对象，所以可以通过->来直接访问它的实例变量。变量n代表加法运算后得到的新分数的分子，d代表新分数的分母。如果双方的分母一致，就直接对分子进行带符号的加法运算。而如果双方的分母不一样，则如同在小学学到的一样明显对双方的分母进行通分，然后再进行加法运算。最后通过方法fractionWithNumberator:denomator：返回分数对象，分数对象的分子和分母分别是n和d。在上述方法中，会自动进行约分操作
+sub：方法会反转输入分数的符号位 然后再利用上面的add方法进行减运算。
+mul和div方法则是完成分数的乘法和除法运算
+
+description方法的功能是生成一个NSString类型的结果，来表示分数类的分数，类方法stringWithFormat:能够像printf（）格式化输出一样，按照规定的格式生成字符串。
+
+
+1.2保存计算结果的FracRegister类
+
+计算器一般都有一个液晶显示屏，来显示计算的结果，这里我们也来实现一个具有相同功能的类FracRegister，并尝试为其增加输入错误时可以显示上次的计算结果这一功能（也就是undo功能）
+
+分数寄存器的接口部分（FracRegister.h）
+
+#ifndef FracRegister_h
+#define FracRegister_h
+#import <Foundation/NSObject.h>
+#import "Fraction.h"
+
+@interface FracRegister : NSObject{
+    Fraction *current;
+    Fraction *prev;
+}
+
+-(id)init;
+-(void)dealloc;
+-(Fraction *)currentValue;
+-(void)setCurrentValue:(Fraction *)val;
+-(BOOL)undoCalc;
+-(void)calculate:(char)op with:(Fraction *)arg;
+
+@end
+
+#endif /* FracRegister_h */
+
+
+变量current和prev分别表示当前的计算结果和上次的计算结果，并未current变量定义get和set访问方法，方法clculate用于计算，计算的类型用char字符来表示
+
+分数寄存器的实现部分（FracRegister.m）
+
+#import "FracRegister.h"
+#import <stdio.h>
+
+@implementation FracRegister
+-(id)init{
+    if((self =[super init]) !=nil)
+        current = prev =nil;
+    return self;
+}
+-(void)dealloc{
+    [current release];
+    [prev release];
+    [super dealloc];
+}
+-(Fraction *)currentValue{
+    return current;
+}
+-(void)setCurrentValue:(Fraction *)val{
+    [val retain];
+    [current release];
+    current = val;
+    [prev release];
+    prev =nil;
+}
+-(BOOL)undoCalc{
+    if (prev == nil)
+        return NO;
+    [current release];
+    current =prev;
+    prev =nil;
+    return YES;
+}
+
+-(void)calculate:(char)op with:(Fraction *)arg{
+    Fraction *result =nil;
+    if(current != nil && arg !=nil){
+        switch (op) {
+            case '+':
+                result = [ current add :arg];
+                break;
+            case '-':
+                result =[current sub :arg];
+                break;
+            case '*':
+                result=[current mul:arg];
+                break;
+            case '/':
+                result=[current div :arg];
+                break;
+            default: //Error
+                break;
+        }
+        if(result !=nil){
+            [result retain];//保存运算结果
+            [prev release];
+            prev = current;
+            current = result;
+        }
+        else{
+            printf("Illegal Opration\n");
+        }
+    }
+}
+@end
+
+初始化函数init中把current和prev的值都设为了nil。因为即使不通过init函数初始化current和prev的初始值也会时0.所以这个init函数不是必须的。
+方法dealloc 中释放了current和prev
+方法undocalc执行undo操作，如果prev不为nil，则释放当前值current，并把prev赋值给current，如果prev为nil，则无法完成undo操作，返回NO；
+setCurrentValue：是变量current的setter方法，用于设置current的值，同时将prev设为nil，这里也可以把prev设为current的原值。
+
+main函数的执行流程是：首先输入一个分数（或整数），接着输入一个运算符和一个分数，这时程序就会输出运算结果，然后在输入一个运算符和分数，程序再次输出运算结果
+
+输入q代表程序结束，输入C表示clear，即清楚当前的计算结果并重新开始，输入u代表undo操作，即使用上次的计算结果代替当前的计算结果
+
+函数getFraction（）用于从命令行读入分数值，支持的输入格式有分数、整数和带分数。
+
+分数计算器的main函数
+
+#import "FracRegister.h"
+#import "Fraction.h"
+#import <Foundation/NSAutoreleasePool.h>
+#import <Foundation/NSString.h>
+#import <stdio.h>
+
+#define BUFSIZE 80
+
+static Fraction *getFraction(const char *buf){
+    int a,b,c;
+    if(sscanf(buf, "%d'%d/%d",&a,&b,&c) ==3)
+        b=(a<0)?(a*c-b):(a*c+b) ;
+    else if(sscanf(buf, "%d/%d",&b,&c) !=2){
+        if(sscanf(buf, "%d",&b) ==1)
+            c= 1;
+        else
+            return nil;
+    }
+    return [Fraction fractionWithNumerator:b denominatior:c];
+}
+
+static Fraction *readFraction(FILE *fp){
+    char buf[BUFSIZE];
+    Fraction *frac =nil;
+    for(;;){
+        if(fgets(buf,BUFSIZE,fp) ==NULL) //EOF is input
+            return nil;
+        if((frac =getFraction(buf) )!=nil)
+            break;
+    }
+    return frac;
+}
+
+int main(void){
+    char com[BUFSIZE],cc;
+    BOOL contflag =YES;
+    NSAutoreleasePool *pool ,*tmppool;
+    FracRegister *reg;
+    Fraction *val;
+    
+    pool =[[NSAutoreleasePool alloc] init];
+    reg = [[[FracRegister alloc]init]autorelease];
+    while(contflag){ // 1
+        tmppool =[[NSAutoreleasePool alloc]init];
+        printf("?");
+        if((val =readFraction(stdin)) !=nil)
+            [reg setCurrentValue:val];
+        else
+            contflag =NO;
+        while (contflag) { //2
+            if(fgets(com, BUFSIZE, stdin) == NULL
+               || (cc =com[0]) == 'q' || cc == 'Q'){ //3
+                contflag =NO;
+                break;
+            }
+            if( cc=='c' || cc=='C' )//clear
+                break;
+            if( cc == '+' || cc == '-' || cc=='*' || cc=='/'){
+                if((val =getFraction(com+1)) == nil) //4
+                    val =readFraction(stdin);
+                if(val ==nil){//EOF
+                    contflag =NO;
+                    break;
+                }
+                [reg calculate:cc with:val];
+            }
+            else if( cc =='u' || cc=='U'){ //Undo
+                if(![reg undoCalc])
+                    printf("Cant UNDO\n");
+            }else{
+                printf("Illegal operator\n");
+                continue;
+            }
+            printf("= %s\n",[[[reg currentValue]description]UTF8String]);
+        }
+        [tmppool release];//5
+    }
+    [pool release];
+    return 0;
+}
+
+结果：
+￼
+
+main函数中先创建了一个FracRegister类的对象reg。
+代码中的 1 和 2 处 是一个循环，当contflag变量为真的情况下处理继续，否则程序终止
+2处的循环在程序进行运算或执行undo操作期间会继续，并在循环的最后在类FracRegister的实例reg中显示当前的计算结果。方法description返回的是NSString类型的字符串，这里使用了UTFString方法以将其转换为C风格的字符串。
+3处首先读入一行输入，然后判断首字符是控制命令还是运算符。如果是运算符的话就继续判断运算符之后是否是分数，如果是分数就调用fetFraction进行计算，如果不是则调用readFraction继续读入。
+在2处 如果输入了控制命令c。q 或用contronl-D 结束了程序，就会跳出循环。
+5处会释放自动释放池。 
+
+
+    """},
 ];
