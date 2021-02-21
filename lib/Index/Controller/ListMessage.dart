@@ -1394,4 +1394,142 @@ main函数中先创建了一个FracRegister类的对象reg。
 
 
     """},
+  {'title' : '第五章（3）' , 'message' : """
+ 1.ARC概要
+
+1.1什么是ARC
+
+采用引用计数方式管理内存时需要程序员管理所有生成对象的所有权。程序员需要清楚地了解获得/放弃对象所有权的时机，并在适当的位置插入retain，release或autorelease函数
+
+ARC（自动引用计数）是一个编译期计数，利用此技术可以简化ObjectiveC在内存管理方面的工作量。ARC通过在编译期间添加适合的retain/release/autorelease等函数，来确保对象被正确地释放。编译器会根据传入的变量是局部变量还是引用变量，返回对象的方法是不是初始化方法等信息来推断应当在何处加入retaion/release/autorelease等函数
+
+1.2禁止调用引用计数的相关函数
+
+ARC有效程序，不能调用以下这些跟引用计数相关的方法
+retain
+release
+autorelease
+retainCount
+当然也不能使用这些函数的selector等
+
+1.3管理自动释放池的新语法
+
+ARC中禁止使用NSAutoReleasePool。而是使用新语法@autoreleasepool来管理自动释放池
+手动管理内存的情况下，自动释放池的使用方法如下所示：
+id pool =[[NSAutoreleasePool alloc] init];
+	/*进行一系列操作*/
+	/*此处不可以使用break、return、goto之类的语句*/
+[pool release]; /*释放对象*/
+
+新的语法如下所示：
+@autoreleasepool{
+	/*进行一系列操作*/
+	/*可以使用break、return、goto语句*/
+}
+
+另外@autoreleasepool在非ARC模式下也能使用，并且使用@autoreleasepool比使用NSAutoReleasePool性能更好 效率更高
+
+1.4变量的初始值：
+
+在ARC中，未指定初始值的变量（包括局部变量）都会被初始化为nil
+但是对于用 _autoreleasing和_unsafe_unretained修饰的变量来说，初始值是未定的
+而对象以外的变量的初值则和以前是一样的
+
+1.5方法族
+
+采用引用计数方式管理内存时，创建对象时就会拥有这个对象的所有权。例如，使用以alloc开头的类方法生成对象，并使用以init开头的类方法来初始化对象的时候，就会获得这个对象的所有权，另外，使用名称中包含new、copy、mutableCopy的方法复制对象时 也会获得这个对象的所有权
+采用引用计数方式管理内存时，如果不使用alloc/init/new/copy/mutableCopy这些方法、或者不使用retain来保留一个对象，就不能成为对象的所有者。另外，只有使用release或者autorelease，才能够放弃这个对象的所有权
+
+这些规定被叫做 所有权策略。
+
+可被保持的对象：ObjectiveC的对象或14章中说明的block对象
+alloc方法族：以alloc开头的方法表示调用者对被创建的对象拥有所有权，返回的对象必须是可以被retain的
+copy方法族：以copy开头的方法表示调用者对被创建的对象拥有所有权，返回的对象必须是可以被retain的
+mutableCopy方法族：以mutableCopy开头的方法表示调用者对被创建的对象拥有所有权，返回的对象必须是可以被retain的
+new方法族：以new开头的方法表示调用者对被创建的对象拥有所有权，返回的对象必须是可以被retain的
+init方法族：以init开头的方法必须被定义为实例方法，它一定要返回id类型或父类子类的指针。
+
+给方法命名时必须遵循命名规则。严守内存管理相关的函数命名规则
+
+1.6方法dealloc的定义
+
+￼
+
+
+1.7使用ARC的程序编译
+
+启用ARC编译代码时，不能使用gcc而要使用clang。同时编译选项要加上 -fobjc-arc 
+
+￼
+
+1.8ARC的基本注意事项
+
+- [ ] 不能在程序中定义和使用下面这些函数：retain、release、autorelease、retainCount
+- [ ] 使用@autoreleasepool代替NSAutoreleasePool
+- [ ] 方法命名必须遵守命名规则，不能随意定义以alloc/init/new/copy/mutableCopy开头且和所有权操作无关的方法
+- [ ] 不用在dealloc中释放实例变量（但可以在dealloc中释放资源）也不需要调用[super dealloc]
+- [ ] 编译代码时使用编译器clang，并加上-fobjc-arc
+
+1.9使用ARC重构分数计算器
+
+首先来看一下类Fraction的类方法fractionWithNumerator：
+ARC有效的情况下，需要删除方法中使用autorelease因为方法fractionWithNumberator：并不以alloc/new/copu/mutableCopy/init开头，所以这个方法生成的对象时一个临时对象，编译器会讲生成的对象自动放入autoReleasePool中
+
++(id)fractionWithNumerator:(int)n denominatior:(int)d   {
+    return [[slef alloc] initWithNumerator:n denominator:d];
+}
+
+下面让我们来看看实现文件FracRegister.m中要修改的地方。首先是dealloc方法，因为当前的dealloc方法只release了类FracRegister的实例变量，所以可以将真个dealloc方法删除掉
+其次是方法setCurrentValue：，按照ARC中的要求吗需要删除其中的retain和release方法
+最后是方法undoCalc和calculate：with：统一需要删除其中的retain和release方法
+
+main函数中需要用@autoreleasepool替换NSAutoreleasePool，因为@autoreleasepool中允许使用break或goto语句，所以可以删掉原来的二重循环
+
+int main(void){
+    char com[BUFSIZE],cc;
+    BOOL contflag =YES;
+    FracRegister *reg;
+    Fraction *val;
+    
+    @autoreleasepool{
+        reg = [[FracRegister alloc]init];
+        while(contflag){ // 1
+             @autoreleasepool{
+                printf("?");
+                if((val =readFraction(stdin)) !=nil)
+                    [reg setCurrentValue:val];
+                else
+                    contflag =NO;
+                while (contflag) { //2
+                    if(fgets(com, BUFSIZE, stdin) == NULL
+                       || (cc =com[0]) == 'q' || cc == 'Q'){ //3
+                        contflag =NO;
+                        break;
+                    }
+                    if( cc=='c' || cc=='C' )//clear
+                        break;
+                    if( cc == '+' || cc == '-' || cc=='*' || cc=='/'){
+                        if((val =getFraction(com+1)) == nil) //4
+                            val =readFraction(stdin);
+                        if(val ==nil){//EOF
+                            contflag =NO;
+                            break;
+                        }
+                        [reg calculate:cc with:val];
+                    }
+                    else if( cc =='u' || cc=='U'){ //Undo
+                        if(![reg undoCalc])
+                            printf("Cant UNDO\n");
+                    }else{
+                        printf("Illegal operator\n");
+                        continue;
+                    }
+                    printf("= %s\n",[[[reg currentValue]description]UTF8String]);
+                }
+             }
+        }
+    }
+    return 0;
+}
+    """},
 ];
