@@ -1532,4 +1532,305 @@ int main(void){
     return 0;
 }
     """},
+  {'title' : '第五章（4）' , 'message' : """
+1.循环引用和弱引用
+
+1.1循环引用
+
+例子：
+
+@interface People : NSObject{
+    id friden;
+}
+-(void)setFriend:(id)obj;
+@end
+
+@implementation People
+-(void)setFriend:(id)obj{
+    d tmp = friden;
+    [obj retain];
+    friden = obj;
+    [tmp release];
+}
+-(void)dealloc{
+    [friden release];
+    [super dealloc];
+}
+@end
+
+People 的两个实例对象（A和B）互相引用的情况
+[A setFriend : B];
+[B setFriend : A];
+
+这种情况下，就算想将A和B都释放掉，但按照规则，也只有等到释放B之后才有可能释放A（否则A的引用计数为1，无法释放），同样，只有释放A后才能释放B（原因同前），而当双方都在等待对方释放的时候，就形成了循环引用，结果2个对象都不会释放，这样几句造成内存泄漏。虽然通过设定A的friend为nil 手动打破A和B的循环引用关系可以完成内存释放，但这样做法比较麻烦，容易出错。
+
+像这种2个对象互相引用，或者像A持有B、B持有C、C持有A这样对个对象的引用关系形成了环的现象，叫做循环引用或者循环保持。循环引用会造成内存泄漏，只有打破循环引用关系才能释放内存
+
+1.2所有权和对象间的关系
+￼
+上图展示了两种比较常见的对象间的关系
+（1）中对象间的关系类似于树形结构，父节点是子节点的所有者。用实际的例子来比喻的话，就像窗口上有几个控件对象，而其中每个控件本身又是由另外一些小控件组成的。（1）中，对象A是BCD的所有者，D是EF的所有者，释放A的时候要先释放BCD，释放D的时候要先释放EF。
+
+（1）中吗，对象C指向A。对象F指向D的虚线，就是指向自己父节点的指针，也被叫做反响指针，为了避免循环引用的发生，可以使用无关所有权的指针来实现这种关系，
+
+（2）中各个对象之间的引用关系更像一种网状关系，这种情况下比较容易发生循环引用的问题，使用和所有权无关的指针时要注意的是，当你需要使用对象时，对方可能已经在不知不觉中释放了。
+
+总而言之拥有所有权的实例变量和只通过指针指向、不拥有所有权的变量在内存方面的处理截然不同，如果处理不当就会造成内存泄漏
+
+1.3弱引用
+
+到目前为止，我们介绍ARC时提到的实例变量都是拥有所有权的实例变量（强引用类型，默认属性）但为了避免循环引用的出现，我们还需要另外一种类型的变量，这种变量能够引用对象，但不会成为对象的所有者，不影响对象本身的回收。
+未来实现这个目的，ARC中引入了弱引用的概念，弱引用时通过存储一个指向对象的指针创建的，且不保留对象，ObjectiveC中__weak修饰符来定义弱引用
+
+__weak id temp;
+__weak NSObject *cacheObj;
+
+通常声明未加__weak修饰符的变量都是强引用类型的变量，声明时也可以通过加上__strong修饰符来明示变量时强引用类型，函数和方法的参数也是强引用类型。
+
+声明变量的时候，__weak可以出现在声明中的任意位置，但要注意的是，最后一个声明的变量f前不可省略__weak
+
+__weak NSObject *a,*b;
+NSObject __weak *c,*d;
+NSObject *__weak e,*__weak f;
+
+强引用和弱引用都会被隐式地初始化为nil。
+这种用于修饰指针类型变量的修饰符被叫做生命周期修饰符或所有权修饰符。声明周期修饰符一共有四种，除了我们已经介绍的strong __weak 之外还有 __autoreleaseing \ __unsafe_unretainded
+
+1.4自动nil化的弱引用
+
+弱引用会在其指向的实例被释放后自动变成nil，这就是弱引用的自动nil化功能。也就是说，即使弱引用指向的实例对象在不知不觉中就释放了，弱引用也不会变成野指针。
+通过例子来看弱引用 自动nil化如何工作：
+例子中的People类有一个弱引用类型的实例变量friend。方法nameOfFriend用于返回friend指向的对象name实例变量，如果friend为nil，则返回none，
+main函数中会声明People类的两个实例对象a和b，变量b会在从自动释放池中退出的时候释放掉。
+
+使用弱引用的一个例子
+
+friend.m
+#import <Foundation/Foundation.h>
+#import <stdio.h>
+
+@interface People :NSObject{
+    const char *name;
+    __weak People *friend;
+}
+-(id)initWithName:(const char *)p;
+-(void)setFriend:(id)obj;
+-(const char *)nameOfFriend;
+
+@end
+
+@implementation People
+-(id)initWithName:(const char *)p{
+    if((self =[super init])!=nil ){
+        name =p;
+        friend =nil;
+    }
+    return self;
+}
+-(void)setFriend:(id)obj{
+    friend =obj;
+}
+-(const char *)nameOfFriend{
+    if(friend ==nil)
+        return "none";
+    return friend->name;
+}
+@end
+
+int main(void){
+    People *a = [[People alloc] initWithName:"Alice"];
+    printf("friend : %s \n",[a nameOfFriend]);
+    @autoreleasepool{
+        People *b =[[People alloc ]initWithName:"Bob"];
+        [a setFriend:b];
+        printf("Friend :%s\n",[a nameOfFriend]);
+        b =nil;
+    }
+    printf("Friend :%s \n",[a nameOfFriend]);
+    return 0;
+}
+
+结果：
+￼
+
+最后一行的输出表示对象a的实例变量friend已经变成了nil，也就是说，弱引用friend指向的实例变量被释放后，friend自动变成了nil
+
+在ARC条件下编程时最需要注意的就是不要形成循环引用，通过使用弱引用既可以防止生成循环引用，又可以防止对象被释放后形成野指针。虽然弱引用有很多好处，但也不能滥用。
+由于ARc中只有强引用才能改变对象的引用计数，保持住对象，因此，如果像保持住对象，至少要为其赋值一个强引用类型的变量，下面这行代码是一个极端的例子，因为赋值了一个弱引用，所以生成的对象会被立刻释放掉：
+
+__weak People *w =[[People alloc ] initWithName:”Lucy”];
+
+1.5对象之间引用关系的基本原则
+
+面对对象的编程中，一个对象的实例变量引用着另外的对象，对象之间是通过引用链接在一起的额，如果把这些关系画出来，就可能得到一张图（关于图的具体概念参考计算机图论），因此，我们就把这些对象（和他们之间的联系）称为对象图。
+对象图中的环路就是循环引用产生的原因，使用ARC的时候应该尽量保持对象之间的关系呈树形结构。
+
+
+2.ARC编程时其他一些注意事项
+
+2.1可以像通常的指针一样使用的对象
+
+使用ARC的时候，如果既不想保持赋值的对象，也不想赋值的对象在释放后自动设为nil。可以使用生命周期修饰符__unsafe_unretained 其所修饰的变量称为非nil化的弱指针，也就是说如果指向的内存区域被释放了，这个指针就是一个野指针了
+
+一个__unsafe_unretained的例子：
+
+People *s,*a;
+__unsafe_unretained People *u;
+s =[[People alloc]initWithName :”Shelly”];
+u =s;//s被赋值给u，但所有权不会加1
+a =u;//变量a是强引用类型，所以赋值操作之后所有权会加1
+u nil;//所有权不会发生变更
+
+这里首先声明了强引用类型的变量s和a，及一个__unsafe_unretained类型的变量u，然后生成一个实例对象并赋值为s，因为u是弱引用类型的变量，所以当u=s时s的所有权不变；接着u赋值给a，因为a是强引用类型的变量，所以赋值后a的所有权加1，最后把nil赋值给u，因为u是弱引用类型的变量，所以u的所有权不会发生改变，另外，因为u是弱引用类型，不会保持对象所以不能把生成的对象直接赋值给u，否则生成的对象就会被立刻释放掉
+
+2.2setter方法的注意事项
+
+ARC有效的情况下，使用setter方法时也有些要注意的地方
+当前所述，ARC有效的情况下，变量默认为__strong类型，用__weak修饰的变量不会进行保持操作，其指向的对象被释放后，变量会自动变成nil
+有一种减少野指针出现的方法是，当不再使用传入的对象时，将其赋值为nil，典型的做法就是在dealloc方法中进行如下处理：
+
+[someone setFriend :nil];
+[controller setDelegate : nil];
+
+2.3通过函数的参数返回结果对象
+
+当一个函数或方法有多个返回值时，我们可以通过函数或方法的参数传入一个指针，将返回值写入指针所指向的空间，C语言中把这种方法叫做 按引用传递 ObjectiveC的ARC中也有类似的方法，但采用了和C语言不用的实现方式，叫做 写回传
+
+写回传经常被用于当一个方法在处理过程中出现错误，通过指向NSError的二重指针返回错误的种类和原因，下面这个声明时NSString的一个初始化函数，它会从指定的文件读入内容来完成NSString的初始化。如果初始化失败，则通过error返回错误的种类和原因，error的二重指针类型 *error指向的是NSError*类型的变量
+
+-(id)initWithContentOfFile:(NSString *)path
+	encoding:(NSStringEncoding)enc;
+	error:(NSError **)error;
+
+ARC编译器会自动为函数的二重指针加上__autoreleasing修饰符，在ARC有效的情况下，可以编译成：
+
+-(id)initWithContentOfFile:(NSString *)path
+	encoding:(NSStringEncoding)enc;
+	error:(__autoreleasing NSError **)error;
+
+__autoreleasing的根本目的是获得一个延迟释放的对象，比如假设你想传递一个未初始化的对象的引用到一个方法中 并在此方法中实例化此对象，而且希望方法返回时这个对象会被加入到自动释放池中，那么你就应该使用__autoreleasing关键字，吊影initWithContentsOfFile时的代码如下所示：
+
+NSError *error = nil;
+NSString *string =[[NSString alloc ] initWithContentOfFile : @“/path/to/file.txt” encoding:NSUTF8StringEncoding error :&error];
+
+编译器会把这段代码转为以下代码：
+
+NSError __string *error = nil;
+NSError __sutoreleasing * temError =error;
+NSString *string =[[NSString alloc ] initWithContentOfFile : @“/path/to/file.txt” encoding:NSUTF8StringEncoding error :&tmpError];
+error =tmpError;
+
+编译器生成了一个临时变量tmpError 执行完函数之后又将临时变量赋值给了error，error被加入到了自动释放池中，会一直存在到自动释放池释放为止。
+
+
+2.4C语言数组保存ObjectiveC对象
+
+ARC有效的程序中可以用C语言数组保存ObjectiveC对象
+
+保存ObjectiveC对象的C数组
+
+array.m
+
+int main(void){
+    People *a[4];
+    static const char *const names[] ={"Laura","Donna","James","Audrey"};
+    @autoreleasepool{
+        for(int i=0;i<4;i++)
+            a[i] =[[People alloc]initWithName:names[i]];
+        [People makeFrineds: &a[0]];//a[0]和a[1]互为好朋友
+        [People makeFrineds: &a[2]];//a[2]和a[3]互为好朋友
+        a[0] =nil;
+    }
+    [People printFriends:a number :4];
+    return 0;
+}
+
+为People类追加的类方法
+
++(void)makeFriends:(People *__strong [])p;
++(void)printFriends:(People *const [])p number:(int)n;
+
+
++(void)makeFriends:(People *__strong [])p{
+    [p[0] setFriend:p[1]];
+    [p[1] setFriend:p[0]];//因为friend是弱引用类型，所以就算互相引用也不会产生循环引用的问题
+}
+
++(void)printFriends:(People *const [])p number:(int)n{
+    for(int i=0;i<n;i++)
+        printf("%d:%s\n",i,[p[i] nameOfFriend]);
+}
+
+结果：
+￼
+
+动态分配内存的例子
+
+int main(void){
+    People *__strong *a;/*必须添加__strong修饰符，__strong修饰符的位置也可以在最前面*/
+    static const char *const names[] ={"Laura","Donna","James","Audrey"};
+    a = (People *__strong *)calloc(sizeof(People *),4);
+    /*因为生成的对象的所有成员变量都要被初始化为nil，所以使用了calloc（）。动态分配完内存后，自动将该内存空间初始化为0*/
+    //赋值的时候进行类型转化
+    @autoreleasepool{
+        for(int i=0;i<4;i++)
+            a[i] =[[People alloc]initWithName:names[i]];
+        [People makeFriends: &a[0]];//a[0]和a[1]互为好朋友
+        [People makeFriends: &a[2]];//a[2]和a[3]互为好朋友
+        a[0] =nil;
+    }
+    [People printFriends:a number :4];
+    for(int i=0;i<4;i++)
+        a[i] =nil;
+    free(a);
+    return 0;
+}
+
+首先必须显式给变量a加上__strong 修饰符，以防止编译器自动给变量加上__autoreleasing修饰符
+另外ARC中不可以使用memeset() bzero() mencpy()等擦欧哦中内存的函数，因为ARC会监视这些函数的行为，所以使用了这些函数后就可能造成内存段的错误。
+
+2.5ARC对结构体的一些限制
+
+ARC有效的情况下，不可以在C语言的结构体中定义ObjectiveC的对象，原因是编译器不能自动释放结构体内部的objcetiveC对象
+例如下面这种定义将出现编译错误“Error ARC for Objective-C objs in structs or unions”
+
+struct Element{
+	id person ; //不能定义id类型的对象
+	NSString *address;//也不能定义NSStirng类型的对象
+	int age;
+}
+
+一种比较常见的解决方法就是使用objectiveC中的类来歹徒结构体。
+
+struct Element{
+	__unsafe_unretained id person ;
+	__unsafe_unretained NSString *address;
+	int age;
+}
+
+我们经常会用准备好的结构体数组来初始化程序，NSString类型的常量字符串可以直接放入C语言的静态数组中，下面的例子是ARC有效的情况下结构体数组的声明方法，@开头的字符串表示的是NSString类型的常量字符串
+static struct {
+	const __unsafe_unretained NSString *name;
+	int age;
+}initialData[] ={
+	{@“Laura”,17},{@“Donna”,17},…
+};
+
+2.6提示编译器进行特别处理
+
+未使用ARC的时候 你可能没有按照ARC中的命名规则来为方法起名，而这种情况下如果某些原因没法修改这些方法的名字，那么将这些代码迁移到ARC环境中就会出现问题。这时可以通过给方法加上实现定义好的一些宏来告诉编译器应该如何对这个方法的返回值进行内存管理
+
+宏的声明需要放到方法末尾：
+NS_RETURNS_RETAINED
+	指明这个方法和init或copy开头的方法一样，由调用端负责释放返回的对象
+NS_RETURNS_NOT_RETAINED
+指明这个方法不属于内存管理的方法，调用端无需释放返回的对象
+
+例如newMoon这个方法，如从命名规则的角度来考虑，他属于new方法族，但如果希望这个方法不改变返回值的所有权，就可以为方法加上NS_RETURNS_NOT_RETAINED
+
++(FishingDate *)newMoon NS_RETURNS_NOT_RETAINED;
+
+但要注意的是，大家还是应该尽可能地修改方法名使其符合命名规则
+编译时，这些宏会被替换为 注释
+    """},
 ];
