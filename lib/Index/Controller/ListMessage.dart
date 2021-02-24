@@ -1953,4 +1953,87 @@ retainCount
 - [ ] 引用计数相关的方法和dealloc方法不会被执行
 
     """},
+  {'title' : '第六章（2）' , 'message' : """
+1.垃圾回收的详细功能
+
+1.1分代垃圾回收
+
+启用垃圾回收后，会在变量赋值，改写变量时建立写屏障，Objc 2.0利用修改变量时的信息采用 分代垃圾回收 的方式来进行内存管理。
+
+分代垃圾回收并不会每次都对整个堆空间进行遍历，而是以新生成的对象为中心，以尽可能快速地收集那些生命周期短的对象，通过采用这种分代的方法，既可以减轻垃圾回收的处理负担，又能有效释放空间。但也要小心这种方法会积攒太对的陈旧对象。
+
+1.2弱引用
+
+垃圾回收的规则应该是： 从根合集只通过强引用连接到的对象都不属于垃圾回收的目标。
+
+1.3 自动nil化
+
+垃圾回收中弱引用的变量也会自动nil化，当其指向的对象被垃圾收集器释放的时候，就会被自动赋值为nil，强引用类型的对象因为不是垃圾回收的目标，所以不会被自动化nil
+
+1.4通过垃圾回收回收动态分配的内存
+
+目前我们直接少了使用垃圾回收回收对象，实际上通过函数NSAllocateCollectable动态分配的内存也可以被垃圾回收回收。NSAllocateCollectable被定义在Foundation/NSZone.h中
+
+void *__strong NSAllocateCollectable(NSUInteger size,NSUInteger options);
+
+NSUInteger是无符号整数类型，size是以byte为单位的内存大小，第二个参数options一定要指定为常量NSScannedOption返回值是分配好的内存空间首地址，如果内存分配失败就返回NULL
+
+通过这个函数分配的内存和实例变量一样，如果无法通过根合集到达，这块内存就可以被回收
+函数返回的指针类型用了__strong 来修饰，也就是说不只限于对象类型，指针也可以用__strong __weak
+
+根据指针的声明不同，垃圾回收的规则也不同：
+static void *p=NSAllocateCollectable(SZ, NSScannedOption);
+static __weak void *w = NSAllocateCollectable(SZ, NSScannedOption);
+static __strong void *s=NSAllocateCollectable(SZ, NSScannedOption);
+
+变量p不是对象类型，当p所指向的内存被回收后，p有可能会变成一个野指针。
+变量w被声明为弱指针类型，当w指向的内存被回收后，w会被自动赋值为nil
+变量s被声明为强指针类型，他所指向的内存不会被回收
+￼
+
+通过NSAllocateCollectable分配的内存因为可以通过垃圾回收被自动回收，所以可以不考虑内存释放的问题，比使用malloc和free编程更方便，但指向除对象之外的动态内存的指针变量都需要用__strong来修饰。结构体中的成员为指针变量的情况下也一样。另外，程序的效率有可能会降低，所以并不需要特意把原来使用malloc/free的代码都改为使用NSAllocateCollectable。
+
+1.5__strong修饰符的使用方法
+
+1、修饰对象类型的变量
+	声明对象类型的变量时，如果不加上__weak修饰符，都默认__strong类型
+2、修饰指针类型的变量
+	被__strong修饰的指针所指向的内存可以被垃圾回收回收，但要等到__strong类型的指针不再使用这块内存之后
+3、用于修饰函数或方法返回的指针类型
+	指针指向的内存属于垃圾回收的范畴，但如果被赋值给一个强引用类型的变量，就暂时不能被回收。
+
+1.6NSGarbageCollector类
+
+类NSGarbageCollector是用于对垃圾收集器进行设定的类，程序编译时可以指定垃圾回收的各种选项，这个类的接口被定义在Foundation/NSGarbageCollector.h中
+
++(id)defaultCollector
+	返回现在有效的垃圾收集器的实例，如果垃圾收集无效，则返回nil
+-(void)collectIfNeeded
+	申请进行垃圾回收，虽然垃圾回收是根据内存使用量自动运行的，但通过这个方法也可以指定希望启动垃圾回收的地方，这个方法在被调用之后会判断当前的内存使用情况，如果觉得有需要进行垃圾回收就会启动垃圾收集器，典型的调用方式如下：
+		[[NSGarbageCollector defultCollector] collectIfNeeded];
+-(void)collectExhaustively
+	申请进行垃圾回收，希望使用深度遍历以尽可能地释放更多的内存时使用，该方法在被调用之后会判断当前的内存使用情况，在需要时启动垃圾收集器
+-(void)disableCollectorForPointer:(void) ptr
+	参数ptr时真心一块内存或指向实例变量的指针，调用这个函数后，这个指针所指向的内存不会被回收，也就是说指针指向的对象会变成根合集中的对象，如果想让对象变为可以再次被回收的话，需要调用下面的函数
+-(void)enableCollectorForPointer:(void) ptr
+	能够让上面函数指定不允许被释放的内存或对象再次允许被释放
+-(void)enable
+-(void)disable
+	diasble方法能够让垃圾收集器暂时停止内存回收，ensable方法则能让垃圾收集器恢复工作
+	但enable和disable必须成对调用，即调用多少次disalbe，就必须调用多少次enable，这2个函数一般应用于防止多线程中同时运行垃圾回收
+	当垃圾收集器重新开始工作时，垃圾收集器暂停内存回收期间的内存也会被回收掉
+-(BOOL)isEnable
+	用于判断垃圾回收器是否有效，有效时返回真
+
+1.7实时API
+
+Objc提供实时API来控制垃圾回收器的动作：
+
+void objc_startCollectorThread(void);
+	启动一个线程来专门运行垃圾收集器，Cocoa环境下的GUI程序通常不需要调用这个方法，该方法只在使用Foundation框架的程序中使用
+void *objc_memmove_collectable(void *dst,const void *src,size_t size);
+	赋值垃圾回收对象的内存时使用该函数代替memcpy和memmove。
+
+
+    """},
 ];
