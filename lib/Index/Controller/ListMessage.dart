@@ -2036,4 +2036,116 @@ void *objc_memmove_collectable(void *dst,const void *src,size_t size);
 
 
     """},
+  {'title' : '第六章（3）' , 'message' : """
+1、内存管理方式的比较
+
+1.1引用计数和垃圾回收
+
+和手动内存管理相比，ARC和垃圾回收有哪些优点：
+- [ ] 不需要再在意对象的所有权
+- [ ] 可以删除程序中内存管理部分的大部分代码，使程序看起来更清爽
+- [ ] 可以避免手动内存管理时的错误（内存泄漏等）
+- [ ] 不需要在意引用计数内存管理中的一些特殊用法。例如访问方法的定义和临时对象的使用等
+- [ ] 可以使多线程环境下的编程更简单。例如：不用担心不同的线程之间可能出现的所有权冲突
+
+垃圾回收的缺点如下所示：
+- [ ] 垃圾收集器运行时会影响程序的速度
+- [ ] 需要不停地监视内存的使用，同引用计数的方式相比，程序的速度会变慢
+- [ ] 会影响程序的效率。不经常使用的内存也会被垃圾收集器不时地访问，实际上有可能会占用更多的内存
+- [ ] 需要使用一些技巧来让对象被回收或不被回收
+- [ ] 无法使用引用计数管理方式下的一些设计方针。例如：事先准备好一些管理文件或其他资源类的对象，在对象被释放的同时关闭资源
+
+相较而言，ARC没有垃圾回收这么多缺点，但也有一些地方需要注意：
+- [ ] 循环引用一旦形成就不会自己消失
+- [ ] 未来防止循环引用的形成，需要之一对象间的关系，GUI的各个类之间也有可能形成循环引用，也要注意防止循环引用的形成
+- [ ] 理论上可被赋值的对象都可以被自动释放，但在处理结构体、数组、二重指针等类型的变量时有一些限制
+- [ ] 需要注意Core Foundation 的对象和ObjectiveC的对象之间的切换（详情见参考附录B）
+
+1.2更改内存管理方式
+
+采用不同的内存管理方式来编写程序的情况下，因为对象的保持和释放方式不同，程序的整体风格和思考方法也不尽相同。例如，即使是一个简单的赋值语句，它在手动内存管理、ARC、垃圾回收中也各不相同，因此这条语句前前后后的操作也都不会相同。
+如果不得不手动迁移的话，就一定要注意以下几个方面：
+- [ ] 与对象的所有权和生存期相关的处理
+- [ ] 释放对象之后的善后处理
+- [ ] 防止野指针的生成
+- [ ] 有时还需要从对象之间的互相关系来重新考虑
+
+1.3各种内存管理方式的比较
+
+下面让我们用一个简单的程序来测试一下手动内存管理（MRC）、ARC和垃圾回收时程序的执行速度。
+下面代码清单中的测试程序循环进行了对象的随机生成和释放。测试的方法是采用一个具体16个元素的数组，数组中的每个元素都是一个链表的头节点，每次生成两个随机数，第一个随机数被用于指明往数组的哪个元素中添加数据，第二个随机数则起到了标识位的作用。如果生成的第二个随机数是16的倍数，则将释放整个链表
+三种不同的内存管理方式的代码一些不同，代码中对这些不同的哪放加上了注释。阴影部分是手动引用计数内存管理方式的代码。
+
+
+用于测试垃圾回收速度的程序
+speed.m
+
+#import <Foundation/Foundation.h>
+#import <stdio.h>
+#import <stdlib.h>
+
+#define MASS 2000 //MASS的值可调整
+#define ARRAYSIZE (1<<6) //数组的大小
+#define ARRAYMASK (ARRAYSIZE -1) //用于生成下标的掩码
+#define LOOP 1500 //确定重复次数
+#define ACCIDENT 0x0F //1/16的释放概率
+
+id buf[ARRAYSIZE]; //全部初始化为nil
+
+@interface Cell :NSObject{
+    id next;    //指向下一个链表元素
+    char mass[MASS];    //确保实例占有一定的空间
+}
+
++(Cell *)cellWithNext:(id)obj;
+
+@end
+
+@implementation Cell
+
+-(id)initWithNext:(id)obj{
+    self =[super init];
+    next =[obj retain]; //手动管理内存需要retain
+    return self;
+}
+
++(Cell *)cellWithNext:(id)obj{
+    return [[[self alloc] initWithNext:obj] autorelease];
+    //手动内存管理需要autorelease之后再返回
+}
+
+-(void)dealloc{//只在手动内存管理时调用
+    [next release];
+    [super dealloc];
+}
+
+@end
+
+int main(void){
+    int i,j;
+    
+    srandom(12345); //随机数的种子固定
+    for(i=0;i<LOOP;i++){
+        @autoreleasepool{ //GC不需要自动释放池
+            for(j=0;j<LOOP;j++){
+                int idx=random() &ARRAYMASK;
+                if(buf[idx] !=nil && (random() & ACCIDENT) == 0){
+                    //满足条件时释放对象
+                    [buf[idx] release];//只在手动内存管理时调用
+                    buf[idx] =nil;
+                }else{
+                    //通常会从数组生成链表
+                    id t=buf[idx];
+                    buf[idx] =[[Cell cellWithNext:t] retain];//手动内存管理时需要
+                    [t release];
+                }
+            }
+        }//GC在这里促进垃圾回收的执行
+    }
+    return 0;
+}
+
+￼
+
+    """},
 ];
