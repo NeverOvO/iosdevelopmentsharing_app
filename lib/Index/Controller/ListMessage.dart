@@ -2178,4 +2178,153 @@ ObjectiveC 2.0中引入属性声明和使用点操作符来调用访问方法的
 ￼
 
     """},
+  {'title' : '第七章（2）' , 'message' : """
+1、属性的声明和功能
+
+1.1显示声明属性
+
+ObjectiveC 2.0新增加了属性声明的功能，这个功能可以让编译器自动生成于数据成员同名的方法，从而就可以省去自己定义读写访问方法的工作
+
+下面的代码是类Creature的定义。NSString是表示字符串的类，这里为实例变量name定义了getter方法，为hitPoint定义了getter和setter方法，但没为magicPoint定义任何访问方法。另外，虽然没用level这个实例变量，但有同一个getter方法定义相同level方法。
+
+带有访问方法的简单类的例子
+Creature.h
+#import <Foundation/Foundation.h>
+
+@interface Creature :NSObject{
+    NSString *name;
+    int hitPoint;
+    int magicPoint;
+}
+-(id) initWithName:(NSString *)str; //1
+-(NSString *)name; //2
+-(int)hitPoint; //3
+-(void)setHitPoint; //4
+-(int)level; //5
+
+@end
+
+在这个类中，我们首先给int类型的hitPoint定义了读写访问方法。而使用属性声明的话，只需要下面这一行，就可以为hitPoint生成读写方法，这里的@property是编译器指令，后面紧跟属性的类型信息和名称。
+@property int hitPoint
+
+属性声明等同于声明了读写两个访问方法，也就是代码中的 2，3两行
+属性声明的时候还可以为属性自定义选项。选项位于圆括号中，签名是@property指令。例如，如果想声明一个只读的访问方法，可以在@property后面加上（readonly）下面就是给NSString类型的name声明一个只读的访问方法。
+@property（readonly） NSString *name；
+
+@property和是否声明了实例变量无关，4 的level方法也可以用@property的方法来实现。用@property关键字重写代码清单的接口部分。在这个例子中，我们把所有@property的语句都方法了后面，实际上@property也可以和方法声明混在一起
+
+使用@property定义的接口文件
+
+#import <Foundation/Foundation.h>
+
+@interface Creature :NSObject{
+    NSString *name;
+    int hitPoint;
+    int magicPoint;
+}
+-(id) initWithName:(NSString *)str; //1
+@property(readonly) NSString *name;
+@property int hitPoint;
+@property(readonly) int level;
+
+@end
+
+magicpoint 和 hitPoint 的类型一样，都是int类型。为magicPoint声明读写方法，既可以单独写一行，也可以和hitPoint写在一起
+
+@property int hitPoint ， magicPoint；
+
+1.2属性的实现
+
+下面的代码是对上面代码的接口部分所对应的实现。可以看到这里为每个属性分别实现了访问方法，本例中的实现都是以ARC管理内存为前提的
+
+带有访问例子的类的实现例子
+Creature.m
+
+#import "Creature.h"
+
+@implementation Creature  //使用ARC
+-(id)initWithName:(NSString *)str{
+    if((self =[super init]) !=nil){
+        name =str;
+        hitPoint =magicPoint =10;  //固定值
+    }
+    return self;
+}
+-(NSString *)name{
+    return name;
+}
+-(int)hitPoint{
+    return hitPoint;
+}
+-(void)setHitPoint:(int)val{
+    hitPoint =val;
+}
+-(int)level{
+    return (hitPoint +magicPoint) /10;
+}
+
+@end
+
+代码Creature.m中是Creature.h的接口文件对应实现
+
+除了上述这种写法外，还有一种更简单的写法，通过使用@synthesize，就可以在一行之内自动生成
+getter和setter方法
+@synthesize hitPoint；
+
+上面这行语句会自动生成属性hitPoint的getter方法hitPoint和setter方法setHitPoint @synthesize是一种编译器功能，会让编译器为类的实例变量自动生成访问方法。
+同样，通过一行语句也能为只读变量name生成getter方法。
+@synthesize name；
+
+修改后如下
+#import "Creature.h"
+
+@implementation Creature  //使用ARC
+-(id)initWithName:(NSString *)str{
+    if((self =[super init]) !=nil){
+        name =str;
+        hitPoint =magicPoint =10;  //固定值
+    }
+    return self;
+}
+@synthesize name;
+@synthesize hitPoint;
+@dynamic level;
+-(int)level{
+    return (hitPoint +magicPoint)/10;
+}
+
+@end
+
+1.3 @synthesize和实例变量
+
+使用@synthesize的时候，可以在一行中声明多个变量
+@sunthesize hitPoint，magicPoint；
+
+通常情况下，@property声明的属性名称和实例变量的名称是相同的，但有时你也可能会需要属性的名称和实例变量的名称不同，这时就可以为实例变量定义其他名称的属性，例如，我们可以通过下面的语句生成名为value的访问方法，并将其绑定到实例变量runningAverage中
+@synthesize value =runningAverage；
+
+没声明实例变量的接口部分的例子
+
+@interface Creature :NSObject
+-(id) initWithName:(NSString *)str;
+@property(readonly) NSString *name;
+@property int hitPoint;
+@property(readonly) int level;
+@end
+
+声明了实例变量的实现部分的例子
+
+@implementation Creature{
+    NSString *name;
+    int hitPoint;
+    int magicePoint;
+}
+-(id)initWithName:(NSString *)str{
+    //省略
+}
+...
+
+@end
+
+    """},
 ];
