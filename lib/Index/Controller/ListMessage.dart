@@ -2327,4 +2327,191 @@ getter和setter方法
 @end
 
     """},
+  {'title' : '第七章（3）' , 'message' : """
+1.4通过@synthesize生成实例变量
+
+属性声明的变量在接口文件和实现文件中都没有声明的情况下，通过使用@synthesize，就可以在类的实例文件中自动生成同名同类型的实例变量
+
+接口文件中声明属性的例子 
+#import <Foundation/Foundation.h>
+
+@interface Creature :NSObject
+-(id) initWithName:(NSString *)str;
+@property(readonly) NSString *name;
+@property int hitPoint,magicePoint;
+@property(readonly) int level;
+@property int speed;
+@property int skill;
+
+@end
+
+没有显式声明实例变量的例子
+
+@implementation Creature  //使用ARC
+{
+    NSString *name;
+    int hitPoint;
+    int magicPoint;
+}
+@synthesize name;
+@synthesize hitPoint,magicPoint;
+@synthesize speed;
+@synthesize skill=ability;
+
+-(id)initWithName:(NSString *)str{
+    if((self =[super init])!=nil){
+        name = str;
+        hitPoint =magicPoint=10;
+        speed =ability =5;
+    }
+    return self;
+}
+
+@dynamic level;
+-(int)level{
+    return (hitPoint +magicPoint +self.skill)/10;
+}
+@end
+
+新追加的属性speed和skill在接口文件和实现文件中都没有声明，但对其使用@synthesize之后，就会自动生成这两个实例变量。因为实例变量会被生成在类的实现文件中，所以无论是类的外部还是从子类中都无法访问这2个实例变量
+
+初始化方法中使用了变量speed和ability，并对其进行了赋值操作，这2个变量的有效区间从@synthesize的声明之后开始
+level方法中有self.skill这样的写法，这是点操作符的写法
+
+通过属性声明的方法也能够同访问方法一样实现封装的目的
+
+1.5给属性指定选项
+
+在前文中我们提到过用2property声明的时候可以给属性指定readonly选项。而除了readonly之外，还有其他一些选项。
+
+￼
+￼
+
+
+也可以不使用默认的访问方法名，而通过setter option来指定访问属性用的方法名，例如，我们可以通过下面这行语句来指定实例变量hitPoint的setter方法为setValue 注意不要忘写最后的：
+
+@property(stter =setValue:) int hirPoint;
+
+1.6赋值时的选项
+
+我们可以为可读写的@property设置选项，选项共有6种：assign  retain unsafe_unretained strong  weak  copy 选项之间都是排他关系，可以不设置任何选项或只设置6种中的一种，根据所修饰的属性是否是对象类型或者所采用的内存管理方式的不同选项的意义也会发送变化
+
+￼
+
+1、@property的属性不是对象类型
+	不是对象类型的属性只可以单纯赋值，因此不需要指定任何选项，或者也可以指定assign选项，通过使用@synthesize，能够生成 7-3 （a、b）getter和setter方法
+
+2、@property的属性是对象类型，且手动管理内存
+	不指定任何选项的情况下，编译的时候会提示警告，指定了assign选项的情况下，通过@synthesize生成7-3（a、b） getter和setter方法
+	指定了reatin选项的情况下，会生成 7-3（c）中的setter方法，在赋值的时候应该对该对象进行保持操作
+	指定了copy选项的情况下，会生成7-3（d）中的setter方法，并使用对象的一个副本来进行赋值，也就是说，不使用输入的对象对属性进行赋值而是生成对象的一个副本，使用这个副本对属性赋值。这种赋值方式只适用于对象类型，并且要求该对象遵循NSCopying协议，且能够使用copy方法
+
+3、属性是对象类型，且使用ARC管理内存
+	不指定任何选项的情况下，编译的时候会提示警告
+	指定了assign或者unsafe_unretained选项的情况下，只进行单纯的赋值，不进行保持操作。声明属性对象的实例变量时需要加上 __unsafe_unretained修饰符，因为没有被保持，所以实例变量指向的内容有可能会被释放掉而变成野指针，在使用的时候需要小心
+	指定了strong或者retain选项的情况下，赋值操作之后还会对传入的变量进行保持操作，这同7-3（c）中的setter方法动作一样，实例变量在声明时需要不加任何修饰符或使用__strong修饰符
+	指定了weak选项的情况下，会生成相当于弱引用赋值的代码。实例变量在声明时需要加上__weak修饰符
+	指定了copy选项的情况下，会使用copy方法，建立传入值的一份副本，并用这份副本给实例变量进行赋值。
+
+4、属性时对象类型，且使用垃圾回收管理内存
+	这种情况下，如果不指定任何选项或指定了assign选项，@synthesize会生成 7-3（a、b）中的setter和getter方法。但是有一点要注意的是，对于符合NSCopying协议也就是说可以利用copy方法的类实例变量，如果不指定任何选项的话，就会提示警告。
+	选项retain和weak没有意义，就算指定了也会被忽略，并执行和assign同样的动作。
+	对弱引用类型的实例变量进行属性设定的语句如下所示@property需要使用assign选项，实例变量需要使用__weak选项修饰
+
+@property(assign) __weak NSString *nickname；
+
+	weak选项是ARC专用的，在垃圾回收的情况下是无效的
+	指定copy选项后，会生成7-3 （d）中的setter方法
+
+￼
+
+1.7原子性
+
+Nonatomic表示访问方法是非原子的。原子性是多线程中的一个概念，如果说访问方法是原子的，那就意味着多线程环境下访问属性是安全的，在执行的过程中不可被打断。而nonatomic则正好是相反，访问方法被nonatomic修饰的情况下，就意味着访问方法在执行的时候可被打断，缺省情况下访问方法都是原子的。
+
+1.8属性声明和继承
+
+子类中可以使用父类中定义的属性，也可以重写父类中定义的访问方法。但是父类中属性声明时指定的各种属性（assign reatin）等，或者为实例变量指定的setter和getter的名称必须完全一样
+唯一一个特别的情况是，对于父类中被定义为readonly类型的属性，子类中可以将其变为readwrite，虽然不可以在子类中使用2synthesize对父类中的实例变量生成访问方法，但可以手动实现对呀的访问方法，这时未来防止子类可以轻易的访问父类中隐藏的实例变量
+
+1.9方法族和属性的关系
+
+使用ARC的时候，必须注意方法的命名，不要和方法族发生冲突
+属性声明的时候会默认生成和属性同名的getter访问方法。需要注意属性名是否和方法族名冲突，特别要注意new开头的属性名的情况
+
+3、通过点操作符访问属性
+
+3.1点操作符的使用方法
+
+上一节代码中 定义了类Creature
+下面代码中以@开头的@Nike时字符串常量的表示方式。类NSString的UTF8String方法可把NSString转为C语言的字符串类型
+
+使用点操作符的例子：
+
+int main(void){
+    Creature *a =[[Creature alloc] initWithName:@"Nike"];
+    a.hitPoint =50;
+    printf("%s : HP =%d (LV = %d)\n",[a.name UTF8String],a.hitPoint,a.level);
+    return 0;
+}
+
+请注意一下这里的变量a，他像访问结构体中的元素那样使用了点操作符来获取修改类的属性。
+
+Objecitve 2.0 会在编译时把使用点操作符访问属性的过程理解为访问方法的调用。因为调用的是访问方法，所以无论对应的实例变量是否存在，只要访问方法存在，就都可以通过点操作符访问属性
+
+点操作符只能用于类类型的实例变量，不能对id类型的变量应用点操作符。
+
+3.2复杂的点操作符的使用方法
+
+1、连用点操作符
+	点操作符可以连用：
+	n=obj.productList.length;
+	obj.contents.enable =YES;
+	因为点操作符按照从左向右的顺序进行解释，所以上面的表达式可以被解释为
+	n=[[obj productList] length];
+	[[obj contents] setEnabled : YES];
+	当一个对象的实例变量是另外一个对象时，可以通过连用点操作符来访问对象的实例变量中的成员。
+
+2、连续赋值
+	下面的连续赋值的表达式会被如何解释：
+	n=0;
+	k=obj.count=obj.depth =++n;
+	赋值时是从右往左解释：
+	k=(obj.count =(obj.depth =++n));
+	 内侧括号中相当于执行了[obj setDepth : ++n] 表达式的值就是++n的值 1.外侧括弧中相当于执行了[obj setCount:1	]表达式的值也是1.最后变量n和k还有obj的两个属性的值都为1.
+	点操作符和c语言中的宏定义不同，不会对n的值重复+1，如果obj是一个结构体的话，上面这段代码的执行结构和现在的结果则相同。
+
+3、对递增、递减和复合赋值运算符的解释
+
+	e=obj.depth++;
+
+	赋值表达式的右侧连续调用了getter和setter方法，相当于执行了[obj setDepth:[obj depth]+1] 最后为e赋值的是递增操作之前的depth的值
+	复合表达式也是一样，需要联系调用getter和setter方法，这种情况下obj.depth *=n; 就相当于 [obj setDepth:[obj depth]*n]； 而把obj换成结构体变量时，上面的这些表达式也会得出相同的结构。
+
+4、self使用点操作符
+	类的方法中可以通过对self应用点操作符来调用自己的访问方法，但要注意的是，不要再访问方法中使用self，否则会造成无限循环的递归，无法终止
+
+	self.count=12;
+	obj.depth=self.depth+1;
+
+5、super使用点操作符
+	可以通过给super加点操作符来调用父类中定于的setter和getter方法
+	-(void)setDepth:(int)val{
+	super.depth =(val <=maxDepth) ? val:maxDepth;
+}
+	
+6、和结构体的成员混用
+	获取类属性的点操作符和访问结构体元素的点操作符可以混用，但有一些需要注意的事项。
+	例如，重设窗口大小的时候会用属性minSize来表示窗口的最小大小，这个属性就是一个结构体类型的变量（NSSize类型）其中存储了窗口的长和宽。当需要获取窗口的最小宽度时，可以按照如下方式书写代码：
+	w =win.minSize.width;
+	上面这行代码等价于下面这种写法，但需要注意的是，width前面的点操作符是访问结构体中的元素时使用的
+	w=[win minSize].width;
+	但不能使用这种专管的写法来为width赋值，例如下面这种赋值写法就是不允许的 setMinSize：只允许使用NSSie类型的结构体变量sz来对minSize进行赋值
+	win.minSize.width=320.0 ; //不允许这种写法
+
+	如果要为minSize的width赋值：
+	NSSize sz=win.minSize;
+	sz.width =320.0;
+	win.minSize=sz;
+    """},
 ];
