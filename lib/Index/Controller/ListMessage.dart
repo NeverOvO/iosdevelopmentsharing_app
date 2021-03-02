@@ -2514,4 +2514,83 @@ Objecitve 2.0 会在编译时把使用点操作符访问属性的过程理解为
 	sz.width =320.0;
 	win.minSize=sz;
     """},
+  {'title' : '第八章（1）' , 'message' : """
+1、类NSObject
+
+1.1根类的作用
+
+ObjectiveC 不仅需要编译环境，同时还需要一个运行时系统 来执行编译好的代码。
+运行时系统扮演的角色类似于ObectiveC的操作系统，他负责完成对象生成、释放时的内存管理、为发来的消息查找对应的处理方法等
+
+1.2类和实例
+
+NSObject只有一个实例变量，就是Class类型的变量isa，isa用于标识实例对象属于哪个类对象。因为isa决定着实例变量和类的关系，非常重要。所以子类不可修改isa的值。另外也不能通过直接访问isa来查询实例变量到底属于哪个类，而要通过实例方法class来完成查询
+
+下面对类和实例变量的相关方法进行说明：
+
+-(Class) class
+	返回消息接收者所属类的类对象
++(Class)class
+	返回类对象
+	虽然可以用类名作为消息的接收者来调用类方法，但当类对象是其他消息的参数，或者将类对象赋值给变量的时候，需要通过这个类方法来获取类对象
+-(id)self
+	返回接收者自身。是一个无任何实际动作但很有用的方法
+-(BOOL)isMemberOfClass:(Class)aClass
+	判断消息接收者是不是aClass类的对象
+-(BOOL)isKindOfClass:(Class)aClass
+	判断消息接收者是否是参数aClass类或者aClass类的子类的实例。这个函数和isMemberOfClass：的区别在于当消息的接收者是aClass的子类的实例时也会返回YES
++(BOOL)isSubclassOfClass:(Class)aClass
+	判断消息接收者是不是参数aClass的子类或自身，如果是则返回YES
+-(Class)superclass
+	返回消息接收者所在类的父类的类对象
++(Class)superclass
+	返回消息接受类的父类的类对象
+
+
+1.3实例对象的生成和释放
+
++(id)alloc
+	生成消息接收类的实例对象。通常和init或init开头的方法连用，生成实例对象的同时需要对其进行初始化，子类中不允许重写alloc方法
+-(void)dealloc
+	释放实例对象，dealloc被作为release的结果调用，除了在子类中重写dealloc的情况之外，程序中不允许直接调用dealloc
+-(oneway void)release
+	将消息接收者的引用计数减1.引用计数变为0时，dealloc方法被调用，消息接收者被释放，关于oneway关键字，请参考19章
+-(id)retain
+	为消息的接收者的引用计数加1，同时返回消息接收者
+-(id)autorelease
+	把消息的接收者加入到自动释放池中，同时返回消息接收者
+-(NSUInteger)retainCount
+	返回消息接收者的引用计数，可在调用时使用这个方法，NSUInteger是无符号整数类型
+-(void)finalize
+	垃圾收集器在释放接收者对象之前会执行该finalize方法
+
+上面从dealloc到retainCount都是手动引用计数管理内存时使用的方法，使用ARC时不可用，fianlize仅供垃圾回收有效时使用
+
+1.4初始化
+-(id)init
+	init可对alloc生成的实例对象进行初始化，子类中可以重写init或者动员新的以init开头的初始化函数
++(void)initialize
+	被用于类的初始化，也就是对类中共同使用的变量进行初始化设定，这个方法会在类收到第一个消息之前被自动执行，不允许手动调用
++(id)new
+	new是alloc和init的组合。new方法返回的实例对象的所有者就是调用new方法的对象，但是把alloc和init组合定义为new并没有什么优点
+	根据类的实现不要，new方法并不会每次都返回一个全新的实例对象，有时new方法会返回对象池中预先生成的对象，也有可能每次都返回同一个对象
+
+1.5对象的比较
+
+-(BOOL)isEqual:(id)anObject
+	消息的接收者如果和参数anObject相等就返回YES
+-(NSUInteger)hash	
+	在把对象放入容器等的时候，返回系统内部用的散列值
+
+原则上来讲，具有相同id值也就是同一个指针指向的对象会被认为是相等的，而子类在这个基础上就进行了扩展，吧拥有相同值认为是相等。我们可以根据需求对相同值进行定义，但一般都会让具备相同值的对象返回相同的散列值，为此就需要对散列方法进行重新定义，而繁殖则不成立，也就是说，散列值相等的两个对象不一定相等
+另外，有的类中还自定义了compare： 或者isEqualTo执行的方法，至于到底利用哪个方法，或自定义类的时候是否需要定义比较用的方法，都根据目的和类的内容做具体分析。
+
+1.6对象的内容描述
+
++(NSString *)description
+	返回一个NSString类型的字符串，表示消息接收者所属类的内容，通常是这个类的类名
+-(NSString *)description
+	返回一个NSString类型的字符串，表述消息接收者的实例对象的内容，通常是类名加id值，子类中也可以重新定义descripiton的返回值
+
+    """},
 ];
