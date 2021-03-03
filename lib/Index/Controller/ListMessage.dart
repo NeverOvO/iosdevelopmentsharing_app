@@ -2593,4 +2593,244 @@ NSObject只有一个实例变量，就是Class类型的变量isa，isa用于标�
 	返回一个NSString类型的字符串，表述消息接收者的实例对象的内容，通常是类名加id值，子类中也可以重新定义descripiton的返回值
 
     """},
+  {'title' : '第八章（2）' , 'message' : """
+1、消息发送机制
+
+1.1选择器和SEL类型
+
+程序中的方法名（选择器）在编译后会被一个内部标识符所代替，这个内部标识符所对应的数据类型就是SEL类型
+
+ObjectiveC 为了能够在程序中操作编译后的选择器，定义了@selector（）指令。通过使用@selector（）指令，就能够直接引用编译后的选择器，使用方法如下：
+
+@selector(mutableCopy)
+@selector(compare:)
+@selector(replaceObjectAtIndex:withObject:)
+
+也可以声明SEL类型的变量
+选择器不同的情况下，编译转换后生成的SEL类型的值也一定不同，相同选择器所对应的SEL类型的值一定相同。ObjectiveC的程序员不需要知道选择器对应的SEL类型的值到底是多少，具体的值和处理器相关。但是，如果SEL类型的变量无效的话，可设其为NULL，或者也可以使用（SEL）0这种常见的表达方法。
+可以使用SEL类型的变量来发送消息，为此，NSObject中准备了如下方法：
+
+-(id)performSelector:(SEL)aSelector
+	向消息的接收者发送aSelector代表的消息，返回这个消息执行的结果
+-(id)performSelector:(SEL)aSelector withObject:(id)anObject
+	向消息的接收者发送aSelector代表的消息，消息的参数为anObject，返回这个消息执行的结果
+
+例如，下面两个消息表达式进行的处理是相同的：
+
+[target description];
+[target performSelector:@selector(description)];
+
+下面这个例子展示了如何根据条件动态决定执行哪个方法：
+
+SEL method = (cond1) ? @selector(activate:) : @selector(hide:);
+id obj =(cond2) ? myDocument : defaultDocument;
+[target performSelector:method withObject : obj];
+
+这种调用方法的方式很像C语言中函数指针的用法，使用函数指针也可以实现和上面的程序相同的功能。
+函数指针是函数在内存中的地址。指针对应的函数是在编译的时候决定的，不能够执行指定之外的函数。SEL类型就相当于方法名，根据消息接收者的不同，来动态执行不同的方法。
+通过SEL类型来指定要执行的方法，这就是ObjectiveC消息发送的方式，也正是通过这种方法才实现Objective的动态性。
+
+1.2消息搜索
+
+NSObject中定义了可以动态查询一个对象是否能够响应某个选择器的方法
+
+-(BOOL)respondsToSelector:(SEL)aSelect
+	查询消息的接收者中是否有能够响应aSelector的方法，包括从父类继承来的方法。如果存在的话返回YES
++(BOOL)instancesRespondToSelector:(SEL) aSelector
+	查询消息的接收者所属的类中是否有能够响应aSelector的实例方法，包括从父类继承来的方法，如果存在的话，返回YES
+
+1.3以函数形式来调用方法
+
+类中定义的方法通常是以函数的形式实现的，但通常在编程的时候并不会直接操作方法所对应的函数。
+通过使用下面的方法，可以获得某个对象持有的方法和函数指针，这些方法都被定义在NSobject中。
+-(IMP) methodForSelector:(SEL) aSelector
+	搜索和指定选择器相对应的方法，并返回指向该方法实现的函数指针。实例对象和类对象都可以使用这个方法。对实例对象使用时，会返回实例方法对应的函数，对类对象使用时，会返回类对象对应的函数
++(IMP)instanceMethodForSelector:(SEL)aSelector
+	搜索和指定选择器对应的实例方法，并返回指向该实例方法实现的函数指针
+
+IMP是“implementation”的缩写，他是一个函数指针，指向了方法实现代码的入口
+
+typedef id (*IMP)(id,SEL,…);
+	 这个被指向的函数包括id、调用的SEL，以及其他一些函数
+-(id)setBox:(id)obj1 title:(id)obj2；
+	foo是这个方法所属类的一个实例变量，获取指向setBox的函数指针，并通过该指针进行函数调用的过程如下所示。
+
+IMP funcp;
+funcp =[foo methodForSelector:@selecotr(setBox:title)];
+xyz=(*funcp)(foo,@selector(setBox:title:),param1,param2);
+
+通过这个例子可以看出，调用方法对应的函数时，除了方法声明时的参数外们还需要把消息接受对象的消息的选择器作为参数。虽然没有明确声明，但方法内部也可以访问这2个参数，因此这2个参数也被叫做隐含参数，第一个参数消息的接收者实际上就是self，第二个参数选择器可以通过_cmd	这个变量来访问。
+
+因为没有明确知道IMP的方法参数的类型，所以编译的时候可以把1个实际的函数指针赋值给IMp类型的变量（需要通过cast进行类型转换）。
+
+1.4对self进行赋值
+
+上文中我们提到了self时方法的一个隐含参数，它代表的是收到消息的对象自身，因此，通过self可以给自己再次发送消息，self也可以作为消息的参数或方法的返回值来使用
+
+此外还可以对self进行赋值操作，初始化方法的定义中，用父类初始化的返回值对self进行赋值，如下所示：
+
+-(id)initWithMax:(int)a{//推荐使用这种写法
+	if((self =[super init]) == nil){
+		max=a;  //从这里开始对子类进行初始化操作
+	}
+	return self;
+}
+
+在OPENSTEP时代，ObjectiveC的初始化方法一般都采用下面这种写法，这种写法的前提是父类的初始化方法不会出错，但这里需要注意的是没有用父类初始化方法的返回值对self进行赋值。子类的初始化方法和父类的初始化方法都是对同一个对象进行操作的，所以不需要显式的对self进行赋值操作
+-(id)initWithMax:(int)a {//旧的写法
+	[super init];
+	max=a;
+	return self;
+}
+
+需要注意的是这种写法也可能出错，除了初始化失败之外，父类的初始化方法也有可能并没有返回self而是返回了其他对象，一个典型的例子就是，由 类族构成的类在初始化方法中就没有放回self。
+ 所以在定义初始化方法时，用父类初始化方法的返回值对self进行赋值并判断其不为nil是一种更安全的做法，另外在使用ARC的时候，如果初始化方法的返回值没被用到，编译时就会发生错误。
+
+而如果用一个对象给self赋值的话 会发生什么呢：self代表消息的接收者，如果用一个对象给self赋值那么这个对象就会变成消息的接收者继续运行下去。除了在初始化方法之外，对self赋值都是一种非常有技巧性的操作，会让程序变得不好理解，因此不推荐使用，而使用ARC的时候，如果在初始化方法以外对self赋值，就会出现编译错误。
+
+1.5发送消息的速度
+
+首先来看看下面这个简单的程序，在这个程序中，我们会不断给一个对象发送相同的消息。程序中的LOOP时宏定义
+
+测试程序（1）：消息送信
+
+#import <Foundation/NSObject.h>
+#import <stdio.h>
+
+unsigned long rnd = 201109;
+
+@interface testObj : NSObject
+-(int) testMethod;
+
+@end
+
+@implementation testObj
+-(int)testMethod{
+    rnd =rnd * 110351524UL +12345;//计算随机数
+    return (rnd &1) ? 1:-1;
+}
+@end
+
+int main(void){
+    id obj =[[testObj alloc]init];
+    int v=[obj testMethod];
+    for(int i =0;i<LOOP;i++){  //LOOP是宏定义
+        for (int j=0;j<20000;j++){
+            v+=[obj testMethod];
+        }
+    }
+    return (v ==0);
+}
+
+这里我们修改了mian()函数，并生成了程序（2）-（4），程序（2）中使用了performSelector：来进行消息送信，程序（3）中没有使用消息调用的方法，而是在程序最开始获取了方法对应的函数指针，用函数调用的形式来调用方法，程序（4）中没有调用方法或函数，而是把方法中的操作直接在程序中展开了
+
+程序（2）：使用performSelector:
+
+int main(void){
+    id obj =[[testObj alloc]init];
+    int v=[obj testMethod];
+    for(int i =0;i<20000;i++){
+        for (int j=0;j<20000;j++){
+            v+=(int)[obj performSelector:@selector(testMethod)];
+        }
+    }
+    return (v ==0);
+}
+
+程序（3）函数调用的形式
+
+int main(void){
+    int (*f)(id ,SEL);
+    id obj =[[testObj alloc]init];
+    int v=[obj testMethod];
+    f = (int (*)(id,SEL))[obj methodForSelector:@selector(testMethod)];
+    for(int i =0;i<20000;i++){
+        for (int j=0;j<20000;j++){
+            v+=(*f)(obj,@selector(testMethod));
+        }
+    }
+    return (v ==0);
+}
+
+程序（4）不使用方法或函数调用 直接展开
+
+int main(void){
+    id obj =[[testObj alloc]init];
+    int v=[obj testMethod];
+    for(int i =0;i<20000;i++){
+        for (int j=0;j<20000;j++){
+            rnd =rnd *1103515245UL +12345;
+            v+=(rnd &1)?1 :-1;
+        }
+    }
+    return (v ==0);
+}
+
+程序（1）-（3）的执行时间减去程序（4）的执行时间（A），就可以得到消息送信或函数调用所花费的时间。
+
+从这个实验可以看出，消息送信所需要的时间是函数调用所需时间的2倍
+还有一点需要注意，我们从上面的测试结果中不能得出 ObjectiveC的程序比C语言的程序慢2倍这种结论。
+
+1.6类对象和根类
+
+因为类对象也是一个对象，所以类对象可以作为根类NSObject的某个子类的对象来使用。下面这个语句看上去好像比较奇怪，但实际上他是正确的，会返回YES。
+
+[[NSString class] isKindOfClass:[NSObject class]];
+
+这就说明了相当于类的对象是存在的，而类对象的类就被叫做元类。实例对象所属的类是class，类对象所属的类是metaclass
+
+类对象中保存的是实例方法，元类对象中保存的是类方法，通过这样的定义能够统一实现实例方法和类方法的调用机制。
+因为编程时不可以直接操作元类，所以并不需要完全了解元类的概念，大家只需要记住任何一个类对象都是继承了根类的元类对象的一个实例即可，也就是说，类对象可以执行根类对象的实例方法。
+
+例如 类对象可以执行NSObject的实例方法performSelector和respondsToSelector当然前提是没有将这些方法作为类方法再次定义
+总结：
+1、所有类的实例对象都可以执行根类的实例方法
+	如果在派生类中重新定义了实例方法，新定义的方法也会被执行
+2、所有类的类对象都可以执行根类的类方法
+	如果在派生类中重新定了类方法，新定义的方法也会被执行
+3、所有类的类对象都可以执行类的实例方法
+	即使在派生类中重新定义了实例方法，根类中的方法也会被执行
+	如果在派生类中将实例方法作为类方法重新定义了的话，新定义的方法会被执行
+
+
+1.7Target-action paradigm
+
+通过使用SEL类型的变量，能够在运行时动态决定执行哪个方法，实际上，APPlication框架就利用这种机制实现了GUI控件对象间的通信，例子：
+
+@interface myCell :NSObject{
+    SEL action;
+    id target;
+    ...
+}
+-(void)setAction:(SEL) aSelector;
+-(void)setTarget:(id)anObject;
+-(void)performClick:(id)sender;
+...
+
+@end
+
+@implementation myCell
+-(void)setAction:(SEL)aSelector{
+    action =aSelector;
+}
+-(void)setTarget:(id)anObject{
+    target =anObject;
+}
+-(void)performClick:(id)sender{
+    (void)[target performSelector:action withObject:sender ];
+}
+...
+
+@end
+
+这个类有SEL类型的实例变量action和id类型的实例变量target，如果对这个类的实例变量发送消息performClick：，action表示的消息就会被发送给target对象，这时，消息的参数使用performClick：的参数
+Application框架利用这种原理实现了GUI空间对象间的通信，叫做目标-动作模式
+
+Appliction框架的目标-动作模式在发送消息时采用了下面这种形式定义的方法，即只有一个id类型的参数，没有返回值。这种形式的方法叫做动作方法
+
+-(void)XXXX:(id)sender;
+
+使用ARC进行开发的情况下，要注意避免形成对象间的引用循环，所以除了主要的对象之间的连接使用强引用之外，其余对象之间进行连接时都推荐使用弱引用，属性声明时，建议加上assign和weak选项
+
+    """},
 ];
