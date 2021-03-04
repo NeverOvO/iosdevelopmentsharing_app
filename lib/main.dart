@@ -7,6 +7,7 @@ import 'Base/routes.dart';
 
 void main() {
   if(Platform.isAndroid){
+    print("object");
     HttpOverrides.global = GlobalHttpOverrides();
   }
   runApp(MyApp());
@@ -24,7 +25,7 @@ class _MyAppState extends State<MyApp>  with WidgetsBindingObserver  {
 
   @override
   void initState() {
-    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance!.addObserver(this);
     // _initFluwx();
   }
 
@@ -43,7 +44,7 @@ class _MyAppState extends State<MyApp>  with WidgetsBindingObserver  {
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
+    WidgetsBinding.instance!.removeObserver(this);
     super.dispose();
   }
 
@@ -101,7 +102,7 @@ class _MyAppState extends State<MyApp>  with WidgetsBindingObserver  {
 //全域忽略SSL
 class GlobalHttpOverrides extends HttpOverrides {
   @override
-  HttpClient createHttpClient(SecurityContext context) {
+  HttpClient createHttpClient(SecurityContext? context) {
     // TODO: implement createHttpClient
     return super.createHttpClient(context)
       ..badCertificateCallback =

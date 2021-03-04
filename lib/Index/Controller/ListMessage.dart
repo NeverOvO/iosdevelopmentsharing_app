@@ -2833,4 +2833,95 @@ Appliction框架的目标-动作模式在发送消息时采用了下面这种形
 使用ARC进行开发的情况下，要注意避免形成对象间的引用循环，所以除了主要的对象之间的连接使用强引用之外，其余对象之间进行连接时都推荐使用弱引用，属性声明时，建议加上assign和weak选项
 
     """},
+  {'title' : '第八章（3）' , 'message' : """
+第八章（3）
+
+1、ObjectiveC和Cocoa环境
+
+1.1 cocoa环境和MacOSX
+
+下图中展示了MacOSX应用环境的概念
+我们经常提到的Cocoa环境通常是指AppKit和Foundation这2个核心框架，但有时候也包含Core Foundation或Core Data等框架
+该文档中强调，对于下层来说，Cocoa并不是一个简单的面向对象的接口。Cocoa的前身OPENSTEP是跨平台的，能对应多种框架。而Cocoa是为了提供构建应用程序所必需的功能而实际的，所以才会利用下层的功能。
+￼
+
+1.2Cocoa Touch 和IOS
+
+iPhone和iPad的操作系统ios使用Cocoa Touch作为GUI环境
+由Foundation和UIkit框架组合而成的GUI环境称为Cocoa Touch
+
+1.3框架
+
+在MacOSX中，将开发和执行软件所必需的图形库、头文件和设定用的各种信息全部汇总在一起就构成了框架。值的一提的是，其中包括了应用程序执行时必须的动态连接库。
+框架是应用程序的骨架的意思，框架提供了程序运行的基本功能和GUI基础，这些功能之上，通过添加独有的处理，就可以实现要实现的功能。
+
+MacOSX 中最重要的框架是Foundation框架，Application框架（也称为AppKit框架或ApplicationKit框架）、Core Foundation框架和System框架。
+
+Foundation框架提供了包括NSObject在内的ObjectiveC的基本类库。
+Core Foundation框架是一组C语言接口，他们为ios应用程序提供了基本的数据管理和服务功能。
+Application框架包含了与Cocoa的GUI的基础-窗口环境相关类
+System框架包含了与Cocoa最底层的Mach核心和Unix相关的类库。
+因为系统框架通常都和程序执行相关，所以编译程序的时候不需要指定-framework选项。
+
+Cocoa框架，实际上他是由Foundation框架，Application框架和CoreData框架组成的。
+像这样把多个框架嵌套打包的技术称为umbrella framework，不过该技术仅仅是苹果公司提供功能的一种方法，不建议普通开发者提供自己的unbrella Framework
+
+1.4框架的构成和头文件
+
+例如，Foundation框架和Application框架的存放路径分别为：
+
+/System/Library/Framework/Foundation.framework
+/System/Library/Framework/AppKit.framework
+
+安装了iOS开发环境的MAC中，iOS框架在开发环境相关文件内部很深的地方。
+/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/IphoneOS5.1.sdk/System/Library/Framework
+
+框架的每个目录中通常包含了以下元素：
+1、类库 —框架同名文件
+2、CodeResources—记载了文件散列值的XML文件
+3、Headers—包含了头文件的目录
+4、resources—包含了不同国家语言用的文件等各类资源的目录
+5、Versions—包含了框架的各种版本的目录
+
+2、全新的运行时系统
+
+2.1对64位的对应和现在运行时系统
+
+苹果公司的官方文档中把64位的MacOSX的运行时系统和IOS的运行时系统称为现代运行时系统，把32位MacOSX的运行时系统被叫做早期运行时系统
+
+2.2数据模型
+
+和很多UNIX系统一样，Mac os X使用ILP32和LP64作为编程的数据模型。
+ILP32的含义是int类型、long类型和指针类型都是32位
+LP64的含义是long类型和指针类型都是64位
+16位电脑的数据模型是LP32
+当前的win系统是LLP64
+
+￼
+
+
+2.3 64位模型和整数模型
+
+数据类型发生了变化的话，主要受影响的是调用API时的参数和返回值的类型。
+ILP32和LP64中的int类型都是32位，这种情况下，就算数据类型变更到了64位，也不能利用64位的优点
+为了解决这个问题，Cocoa环境引入了NSInteger类型，NISInteger在32位的数据模型下被定义为int，在64位数据模型下被定义为long，除此之外Cocoa还定义了无符号的NSUInteger类型，Cocoa API中参数为int类型的函数或方法绝大多数都使用了NSinteger代替int
+NSInteger和NSUInteger都在头文件NSObjURuntime.h中定义。宏__LP64__在64位编译时为真。宏TARGET_OS_IPHONE面向iOS真机编译时为真。宏TARGET_IPHONE_SIMULATOR表示面向模拟器编译
+
+2.4 Core Graphics的浮点数类型
+
+2.5 健壮实例变量
+
+现代运行时系统的一个最显著的特征就是实例变量是健壮的
+下图，编译源代码生成Volume.o MuteVolume.o main.o 链接这些.o 文件生成可执行文件A。可执行文件A可以正常执行。接着编译Volume.h改变其中的实例变量的顺序并增加新的实例变量。这里重新编译生成Volume.o并链接原有的MuteVolume.o和main.o生成可执行文件B
+
+￼
+
+类MuteVolume继承自类Volume MuteVolume.o 中理应保持着变更之前的实例变量。实际上，在32位数据模型下编译链接生成的可执行文件B，在早期的运行时系统中时无法正常执行的。而现在可以正常执行
+
+如果框架中的类发生了变化，应用程序就一定要重新编译才能够早期的运行时系统中执行，这种问题称为脆弱的二进制接口。
+现代运行时系统针对这个问题进行了改进，使实例变量发生变化的情况下，应用程序不重新编译也能够继续执行，这称为健壮的实例变量，但实例变量仅限于上图中所示的变量顺序的变化或增加了新的实例变量这种程度，删除了实例变量或改变了实例变量的类型时还是需要重新编译才能够正常运行的
+
+
+
+    """},
 ];

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:iosdevelopmentsharing_app/Index/Controller/ListMessage.dart';
 class IndexViewController extends StatefulWidget {
   final arguments;
-  const IndexViewController({Key key, this.arguments}) : super(key: key);
+  const IndexViewController({Key? key, this.arguments}) : super(key: key);
 
   @override
   _IndexViewControllerState createState() =>

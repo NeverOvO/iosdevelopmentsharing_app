@@ -12,9 +12,9 @@ final routes = {
 
 // ignore: top_level_function_literal_block, missing_return
 var onGenerateRoute = (RouteSettings settings){
-  final String name = settings.name;
+  final String? name = settings.name;
 
-  final Function pageContentBuilder = routes[name];
+  final Function? pageContentBuilder = routes[name];
 
   if (pageContentBuilder != null) {
     if (settings.arguments != null) {
