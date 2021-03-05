@@ -2924,4 +2924,297 @@ NSInteger和NSUInteger都在头文件NSObjURuntime.h中定义。宏__LP64__在64
 
 
     """},
+  {'title' : '第九章（1）' , 'message' : """
+1、对象的可变性
+
+1.1 可变对象和不可变对象
+
+ObjectiveC中的类分为可变类和不可变类。
+可变类的实例对象称为可变对象，指的是创建后能够改变其内容的对象。
+不可变类的实例对象称为不可变对象，指的是创建后不可更改其内容的对象。
+对象是否可变的属性称为可变性
+例如，字符串类就分不可变字符串类NSString和可变字符串类NSMutableString
+
+￼
+
+下面使用不可变类NSString编程的一个例子。假设tempDirectory方法会返回一个NSString的对象，是目标文件的目录。这里，我们将这个目录的filename文件的扩展名更改为bak
+
+NSString *str=[self tempDirectory];
+NSString *work = [filename lastPathComponent];//从完全路径中获取文件名
+work = [work stringByDeletingPathExtension];//删除文件的扩展名
+work=[work stringByAppendingPathExtension:@"bak"];//给文件加上扩展名bak
+str=[str stringByAppendingPathComponent:work];//重新生成新的路径
+
+上面这段程序中，有很多个地方用到了NSString对象，就好比数值计算的中间结果一样
+下面让我们看一个可变对象NSMutableArray的例子。方法nextEntry从文件逐行读入，每读一行信息就生成一个类MyInfo的实例对象，到达文件末尾的时候返回nil，到底生成了多少个MyInfo对象同具体文件相关，这里把生成的所有实例对象都放入数组对象anArray中
+
+MyInfo *entry;
+NSMutableArray *anArray =[NSMutableArray array];//生成空的数组
+while((entry =[self nextEntry]) != nil){
+    [anArray addObject : entry];//数组对象的末尾追加entey
+}
+
+使用方法addObject后，并不能生成新的对象，而是原来的数组对象anArray中会被添加新的元素，NSMutableArray的实例对象anArray在初始时一个对象都没有，会随着对象的加入被自动扩展。
+
+上面的例子也可以使用不可变数组NSArray来实现，但这种情况下，每当数组中的元素发生变化时，都需要新建一个数组对象并把元素重新复制进去，非常麻烦，通过这个例子可以看出，根据实际情况的不同来区分使用可变和不可变对象是十分重要的。
+
+1.2可变对象的生成
+
+上表中列举了常用的可变类和与其对于的不可变类，其中可变类时不可变类的子类，例如类NSMutableArray就是类NSArray的子类，所以可变类的实例对象可直接作为不可变类的实例对象来使用
+
+与此相反，如果想把不可变类的实例对象作为可变类的实例对象来使用的话，该如何操作：
+可以使用mutableCopy方法味不可变对象创建一个可变的副本。这个方法定义在NSobject中，只要是成对出现的可变类和不可变类的对象，就都可以使用这个方法。
+-(id)mutableCopy
+
+2、字符串类NSString
+
+2.1常量字符串
+
+ObjectiveC和C语言一样也在程序中提供了定义字符串对象的方法，即将想要表示的字符串用“”扩起来，并在开头加上@
+
+NSString *myname=@“T.Ogihara”;
+NSString *work =[@“Name :” stringByAppendString : myname];
+
+使用这种方法定义的字符串是常量对象，可被作为NSString的对象使用。常量字符串不仅仅可作为消息的参数，还可作为消息的接收者。
+@“” 表示一个长度为0的空字符串，但和nil有区别。另外 和ANSI C的字符串常量一样，编译器编译时会把空格分割的字符串连在一起，如下所示：
+
+#define Manufacturer @“Phantom Cookie , Inc”
+#define Year @“2005”
+NSString *note =@“Copyright ” Year @ “” Manufacturer;
+
+
+2.2NSString
+
+本节说明的是Cocoa环境下的字符串类NSString 的概要
+NSString代表不可变字符串对象，一旦NSString被创建，我们就不能改变它
+
+（1、操作Unicode编码的字符串
+	NSSting中的汉子都是用Unicode来表示的。Unicode的UTF8 编码兼容ASCII的7bit编码，字符串中只含有ASCII的7bit范围的编码的情况下，ASCII的字符串可被当作UTF8 的Unicode字符串来处理。ASCII的字符串不能被当作UTF16的字符串来处理，苹果电脑中的Finder使用UTF8来表示中文文件名
+	下面提到的unichar是两字节长的char，代表unicode的一个字符，和char有所不同
+	-(id)initWithUTF8String :(const char *)bytes
+		从以NULL结束的UTF8编码的C字符串中复制信息，并初始化接收者
+	-(__string const char *)UTF8String
+		返回编码位UTF、以NULL结尾的C语言字符串的指针，基于引用计数的内存管理模式下，返回的字符串会在消息接收者对象被释放的同时被释放掉，如果想在对象被释放之后也能使用，就需要额外复制一份。垃圾回收的内存管理模式下，因为返回的指针是强指针，所以不会被垃圾回收
+	-(NSUInteger) length
+		返回字符串中Unicode编码的字符的个数，和C风格的字符串不同，不能用这个函数的返回值来计算需要的字节数和表示时需要的长度
+	-(unichar)characterAtIndex:(NSUInteger)index
+		返回索引位置位i处的字符。编码位Unicode编码
+	-(id)initWithCharacters:(const unichar *)characters
+			            length:(NSUInteger)length
+			用characters中存储的length长的字符串来初始化并返回一个NSString对象，字符串的编码是Unicode编码。初始化时以length为准，characters中就算包含了“\0	”也不能作为终止标记
+		便利构造器stringWithCharacters：length
+	-(void)getCharacters:(unichar *)buffer
+				 rangs:(NSRange)aRange
+		NSRange是一个表示范围的结构体，其中包含数据的首指针和数据长度。这个函数的作为就是将aRange所表示的字符串作为unicode字符串作为Unicode字符串写入缓冲区buffer中，末尾不自动添加NULL，缓冲区需要足够大
+
+（2、编码转换
+
+C风格或字节类型的字符串和NSString之间可以互相转化。字符串编码定义为枚举类型NSStringEncoding保存在NSString的头文件中，其中最常用的几个类型如下：
+
+NSASCIIStringEncoding 		7bit的ASCII编码
+NSUTF8StringEncoding			8bit的Unicode编码
+NSMacOSRomanStringEncoding	MacOS用的编码
+NSJapaneseEUCStringEncoding	8bit的日文EUC编码
+NSShiftJISStringEncoding		8bit的日文shift-JIS编码
+
+-(id) initWithCString :(const char *) nullTerminatedCString
+		  encoding:(NSStringEncoding)encoding
+	用C风格字符串初始化一个NSString对象，字符串nullTerminatedCString要求以NULL结尾，nullTerminatedCString编码位encoding
+	便利构造器：stringWithCString：encoding
+-(__strong const char *)cStringUsingEncoding:(NSStringEncoding)encoding
+	返回消息接收者的C风格字符串，编码由encoding指定。引用计数的内存管理模式下，返回的字符串会在消息接收对象被释放的时候同时被释放掉，如果想在对象被释放之后也能使用的话，就需要额外复制一份。垃圾回收的内存管理模式下，因为返回的指针是强指针，所以不会被回收
+	如果字符串无法转换为指导编码，编码时会抛出异常
+	使用方法getCString：maxLength：encoding：能够向准备好的内存空间写入C风格的字符串
+-(id)initWithData:(NSData *)data
+             encoding:(NSStringEncoding)encoding
+	用存储在data中的二进制数据来初始化NSString对象，data中二进制数据的编码是encoding返回的NSString对象的编码是Unicode
+	同样，通过方法initWithBytes：length：encoding：能够用指定内存中的二进制数据来初始化一个NSString对象。
+-(NSData *)dataUsingEncoding:(NSStringEncoding) encoding
+	将接收消息的NSString对象的内容用encoding指定的方式编码，并将结果存储到一个NSData对象中并返回，如果编码转换失败则nil
+	使用方法lengthOfBytesUsingEncoding：能够返回NSString被编码之后所占的bytes数
+-(BOOL) canBeConvertedToEncoding:(NSStringEncoding) encoding
+	测试接收消息的NSString对象能否转换为encoding编码
+	使用类方法availableStringEncodings能够返回当前环境下可用的编码方式。
+-(NSString *)stringByAddingPercentEscapesUsingEncoding:(NSStringEncoding)encoding
+	能够对一些特殊符号进行替换，主要被用于处理URL字符串，比如将空格替换成%20等
+	方法stringByReplacingPercentEscapesUsingEncoding：是上述方法的逆变换，这2个方法都定义在Foundation/NSURL.h中
+
+（3、生成指定格式的字符串
+
+NSString中有和C语言中printf() 一样功能的函数，能够生成指定格式的NSString对象，区别在于指定目标格式的格式化字符串本身也是一个NSString对象，指定格式时可以使用%@，所以要特别注意类型方面的处理
+
+%@对应的参数必须是一个对象，当输出%@时（例如：NSLog（@“%@”，test））实际上就是调用了test的description方法，返回的结果存储到%@中。description方法时NSObject中定义的方法，任何对象都可以调用他，description返回的内容和类实现相关。
+-(id)initWithFormat:(NSString *)format,…
+	根据format中指定的格式串来生成一个字符串，使用这个字符串来初始化消息接收者。format中的参数用逗号分隔，格式字符串不能为空
+	便利构造器：stringWithFormat：
+
+和c语言与阳，ObjectiveC也支持可变参数的方法，在参数的末尾加上逗号，然后加上…即可
+
+（4、NSString的比较
+
+下面对用于比较NSString的方法进行说明
+字符串比较时会返回一个NSComparisonResult类型的值。NSComparisonResult是enum型数据，共有三个值，分别为NSOrderedAscending（左侧小于右侧）、NSOrderedSame（两者相同）、NSOrderedDescending（右侧小于左侧）。这些方法还可以用在多个NSString变量排序
+
+-(NSComparisonResult)compare:(NSString *)aString
+	比较消息的接收者和参数字符串aString，参数aString不可以为nil。
+	如果想比较两个字符串的内容是否相同，除了compare：外还可以使用下面将介绍的方法isEqualToString：。
+-(NSComparisonResult)caseInsensitiveCompare
+	compare：进行的是区分大小写的比较，caseInsensitiveCompare：进行的是不区分大小写的比较
+	除了使用caseInsensitiveCompare：外也可以使用方法compare：options：来实现不区分大小写的比较，需要用或运算来为option参数添加选项标记，不区分大小写比较的选项为NSCaseInsensitiveSearch
+-(NSComparisonResult)localizedStandardCompare:(NSString *)aString
+	按照Mac系统finder的排序规则进行比较操作，通常对数组中的文件进行排序时，有可能希望文件的排序规则和finder的排序规则一致，这时便可以使用方法localizedStandardCompare：。
+-(BOOL)isEqualToString:(NSString *)aString
+	比较消息的接收者和参数aString是否相等。
+-(BOOL)hasPrefix:(NSString *)aString
+	检查字符串是否以astring开头。
+	可以使用hasSuffix来判断消息接收者是否以参数字符串结尾
+	另外还可以使用方法commonPrefixWithString：options：来取出消息接收者和参数字符串开头部分相同的字符串
+
+（5、为字符串追加内容
+
+-(NSString *)stringByAppendingString:(NSString *)aString
+	在接收者字符串后面追加字符串aString，返回一个新的字符串
+-(NSString *)stringByAppendingFormat:(NSString *)format,…
+	在接收者字符串后面追加格式字符串，字符串的具体格式由format指定，然后返回一个新的字符串
+
+（6、截取字符串
+	
+截取指定的字符串并返回，使用结构体NSRange来表示要截取的字符串的开始位置和长度
+-(NSString *)substringToIndex:(NSUIteger)anIndex
+	返回一个新的字符串，新字符串的范围时从接收者字符串的第一个字符开始到anIndex结束anIdex不包含在内
+-(NSString *)substringFromIndex:(NSUInteger)anIndex
+	返回一个新的字符串，新字符串的范围时从anIdex开始一直到结尾，anIdex位置的字符也包含在内
+-(NSString *)substringWithRange:(NSRange)aRange
+	返回一个新的字符串，新字符串的开始位置和长度由aRnage来指定
+
+（7、检索和置换
+-(NSRange) rangeOfString :(NSString *)aString 
+	在接收者字符串中查找aString，如果能找到就将aString的位置和长度以NSrange的形式返回。如果没找到，则返回一个位置为NSNotFound、长度为0的NSrange类型的对象
+	还有一个方法rangeOfString：option：，这个方法带有选项参数。例如通过指定选项NSCaseInsensitiveSearch，就可以进行不区分大小写的查找
+-(NSRange)lineRangeForRange:(NSRange)aRange
+	返回范围aRnage所在行的范围，这里的行用下表中的字符作为结尾标志的
+
+￼
+
+-(NSString *)stringByReplacingCharactersInRange:(NSRange)range withString:(NSString *)replacement
+	将range范围内的内容替换成字符串replacement
+-(NSString *)stringByReplacingOccurrencesOfString:(NSString *)target withString:(NSString *)replacement
+	将字符串target替换为字符串replacement
+
+除了以上几种查找方法外，检索时还可以使用正则表达式。
+
+（8、大小写的处理
+
+可以使用lowercaseString方法将字符串中所有的大写字母都转换为小写字母，与此相对，uppercaseString则被用于将所有的小写字母转换为大写字母
+除了这2个方法外，方法capitalizedString能够将所有单词的首字母变为大写，其余字母变为小写
+
+（9、数值转换
+
+方法doubleValue可把NSString类型的字符串转为double类型的数据。
+方法floatValue、intValue、integerValue、boolValue分别用来把NSString类型的字符串转为float、int、NSInteger和BOOL类型的数值。
+以上这些函数都会忽略字符串前面的空格
+
+（10、路径的处理
+
+文件的路径可用NSString来表示，NSString中提供有常用的处理文件路径的方法，这些方法的接口都定义在“Foundation/NSPathUtilities.h”中
+
+-(NSString *)lastPathComponent
+	提取文件路径中最后一个组成部分。
+-(NSString *)stringByAppendingPathComponent:(NSString *)aStr
+	将aStr加到现有字符串的末尾并返回，根据需要会自动追加分隔符
+-(NSString *)stringByDeletingLastPathComponent
+	删除路径中最后一个组成部分，如果返回的结果根本不是路径，那么最后的路径分隔符也会被删除。文件路径@“/tmp/image/cat.tiff”的情况下，调用stringByDeletingLastPathComponent之后返回的结果是“/tmp/image”。
+-(NSString *)pathExtension
+	返回文件的扩展名，扩展名不包含“.” 如果没有扩展名则返回空字符串
+-(NSString *)stringByAppendingPathExtension:(NSString *)aStr
+	将“.”和指定的扩展名添加到现有路径的最后一个组成部分上
+-(NSString *)stringByDeletingPathExtension
+	删除文件的扩展名包括“.”如果文件没有扩展名，则返回原来的字符串
+-(BOOl)isAbsolutePath
+	判断路径是不是一个绝对路径，如果时则返回YES
++(NSString *)pathWithComponents:(NSArray *)components
+	使用components中的元素来构建路径，结合的时候自动添加路径分隔符“/”想生成一个绝对路径的话，数组的第一个元素使用@“/”，路径的最后想以路径分隔符“/”结尾的话，数组的最后一个元素使用空字符串@“”。
+-(NSArray *)pathComponents
+	和pathWithComponents正好相反，把接收者作为路径名来解析，并将路径的哥哥组成部分放入数组中。输入的路径是绝对路径，数组的第一个元素是@“/”
+-(NSString *)stringByExpandingTildeInPath
+	消息的接收者被看作路径名，如果路径的第一个字符是代字符（以～开头的，例如～/或～john/）则返回用户主目录的路径字符串，如果不以代字符开头，则直接返回输入的字符串。stringByAbbreviatingWithTildeInPath和stringByExpandingTildeInPath的功能正好相反，会把标准的格式的字符串转换为使用代字符的字符串
+-(__strong const char *)fileSystemRepresentation
+	返回路径的C风格字符串，使用当前系统的编码，获得的C风格字符串可被用于系统调用等。基于引用计数的内存管理中，返回C语言的风格的字符串会和消息的接收者对象一起被释放。垃圾回收的内存管理方式下，如果返回值为强引用，则不会被垃圾收集器回收
+	使用方法getFileSystemRepresentation：maxLength：可以将返回的C风格字符串写入事先准备好的内存中
+
+（11、文件的输入和输出
+
+可以从文件中读取字符串的内容，也可以将字符串的内容输出到文件中。另外 下面这些同文件相关的方法都带有一个error参数，并把发生错误时的错误信息都写入到error中，error不能为NULL，否则就不会返回任何错误信息
+
+-(id)initWithContentsOfFile:(NSString *)path
+                              encoding:(NSStringEncoding)enc
+                                     error:(NSError **)error
+	通过读取文件path中的内容来初始化一个NSString 文件的编码为enc，读取文件失败的时候会释放调用者，并在返回nil的同时将详细的错误信息设定到error
+	便利构造器：stringWithContentsOfFile：encoding：error
+-(id)initWithContentsOfFile:(NSString *)path
+                      usedEncoding:(NSStringEncoding *)enc
+                                     error:(NSError **)error
+	和上一个方法一样，通过读取文件path中的内容来初始化一个NSString，不同的地方在于这个函数能够自动判断文件的编码，并通过enc返回，文件的编码时通过文件的内容和文件的扩展属性来判断的
+	便利构造器：stringWithContentsOfFile：usedEncoding：error
+-(BOOL)writeToFile:(NSString *)path
+               atomically:(BOOL)useAuxiliaryFile
+                 encoding:(NSStringEncoding)enc
+                        error:(NSError **)error
+	用于将字符串的内容写入到以path为路径的文件中，写入的时候使用enc指定的编码，写入成功则返回yes
+	useAuxiliaryfile为YES的情况下，会首先新建一个临时文件，把字符串的内容写入到临时文件中。然后在写入成功后把临时文件重命名为path指定的文件，通过采用这种方法，就算有同名文件存在，写入发生错误时也不会损坏原来的文件。useAuxiliaryfile为NO的情况下，则直接输入字符串的内容到path指定的文件中，如果写入文件失败，则会返回NO的同时把出错的原因写入到error中，并返回给函数的调用者
+
+（12、其他
+
+-(id)init
+	对接收者进行初始化，并返回一个空字符串。这个方法通常被用于NSMutableString 的初始化
+	便利构造器：string
+-(id)initWithString:(NSString *)aString
+	返回一个字符串对象，其内容时aString的副本
+	aString也可以是一个NSMutableString的实例对象，用这个方法可以用一个可变的字符串对象生成一个不可变的字符串对象
+	便利构造器：stringWithString：
+-(NSString *)description
+	这个方法是在NSObject中定义的，会返回表示消息接收者内容的字符串
+	NSString的description方法会直接返回self
+-(id)propertyList
+	返回消息接收者的属性列表。属性列表是一种格式，用来存储串行化后的对象，由NSString、NSData、NSArray和NSDictionary构成。属性列表文件的扩展名为.plist	 因此通常称为 plist文件。Plist文件通常被用于存储用户设置，也可以将其用于存储捆绑的信息
+-(NSArray *)componentsSeparatedByCharactersInSet:(NSCharacterSet *)sep
+	用参数sep指定的字符串集合中的字符作为分隔符，对消息的接收者字符串进行分割，并返回分隔后生成的字符串数组
+
+2.3NSMutableString
+
+本节将对可变字符串NSMutableString进行说明，NSMutableString是NSString的子类，所以NSMutableString可以使用NSString中定义的所有方法，和NSString一样，NSMutableString的接口也定义在文件Foundation/NSString.h中
+
+（1、实例对象的额生成和初始化
+
+-(id)initWithCapacity:(NSUInteger)capacity
+	初始化一个NSMutableString类型的对象，capacity指明了要被初始化的NSMutableString对象的大小，NSMutableString的对象会随着字符串的变化而自动扩展内存，所以capacity不需要非常精密。除了这个方法之外，还可以使用NSString的init方法或NSString的类方法string：来生成一个空的NSMutableString对象
+	便利构造器：stringWithCapacity
+
+（2、追加字符串
+
+-(void)appendString :(NSString *)aString
+	在消息接收者的末尾追加aString
+-(void)appendFormat:(NSString *)format,…
+	在消息接收者的末尾追加format格式的格式化字符串
+
+（3、插入、删除、置换
+
+-(void)insertString:(NSString *)aString
+		  atIndex:(NSUInteger)loc
+	在消息接收者的atIndex位置插入字符串aString
+-(void)deleteCharactersInRange:(NSRange)range
+	结构体NSRange表示一个范围，其中包含了开始位置和长度
+	这个方法的作用是从接收者中删除aRange指定范围的字符串
+-(void)setString:(NSString *)aString
+	复制aString指定的字符串，并将其设置为消息接收者的内容
+-(void)replaceCharactersInRange:(NSRange)aRange
+				      withString:(NSString *)aString
+-(NSUInteger)replaceOccurrencesOfString:(NSString *)target
+						     withString:(NSString *)replacement
+							 options:(NSStringCompareOptions)opts
+							    range:(NSRange)searchRange
+	searchRange指定范围内如果存在字符串target，就将其替换为replacement这个函数的返回值就是替换的次数，使用选项opts可以设置忽略大小写，或者使用正则表达式进行替换。
+
+
+    """},
 ];
