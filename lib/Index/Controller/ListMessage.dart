@@ -3217,4 +3217,123 @@ NSString中有和C语言中printf() 一样功能的函数，能够生成指定�
 
 
     """},
+  {'title' : '第九章（2）' , 'message' : """
+3、NSData
+
+3.1、NSData
+
+NSData是Cocoa下对二进制数据的一个封装，能够把二进制数据当作对象来处理。
+同C语言的数组相比，NSData的优点是可以进行更抽象化的操作，使内容管理更容易，同时也是CocoaAPI中操作二进制数据的标准。
+
+（1、数据对象的生成和初始化
+
+-(id)initWithBytes:(const void *)bytes
+		  length:(NSUInteger) length
+	复制以bytes开头，长度为length的数据，进行初始化使其称为数据对象的内容
+	便利构造器：dataWithBytes：length：
+-(id)initWithBytesNoCopy:(void *)bytes
+			        length:(unsigned)length
+		  freeWhenDone:(BOOL)flag
+	将以bytes开头，长度为length的数据初始化为数据对象的内容，生成的NSData中保存的是指向数据的指针，并没有对数据进行复制操作。flag为YES的时候，生成的NSData对象是bytes的所有者，当NSData对象被释放的时候也会同时释放bytes，所以bytes必须是通过malloc在堆上分配的内存。当flag为NO时，bytes不会被自动释放，释放bytes时要注意时机，不要在nSData对象还被使用的时候释放bytes
+	便利构造器：dataWithBytesNoCopy：length：freeWhenDone：
+-(id)initWithData:(NSData *)aData
+	用指定的NSData对象aData来创建一个新的NSData对象，参数可以是NSMutableData对象，所以用这个方法可以为一个可变NSMutableData对象生成一个不可变的NSData对象。
+	便利构造器：dataWithData：
++(id)data
+	返回一个长度为0的临时NSData对象，这个方法多被用于NSMutableData中，对其初始化方法为init
+
+（2、访问NSData中的数据
+下面的说明中用到的NSRange包括开始指针和数据的长度
+-(NSUInteger)length
+	返回NSData对象中数据的长度
+-(const void *)bytes
+	返回NSData对象中数据的首指针
+-(void)getBytes:(void *)buffer
+	        length:(NSUInteger)length
+	复制NSData对象的数据到buffer中，复制时从NSData对象中数据的开头开始，副本长度为length，如果想获取指定范围内的数据的话，可以使用方法getBytes：range：
+-(NSData *)subdataWithRange:(NSRange)range
+	用range指定范围内的data来生成一个新的NSData对象并返回
+-(NSRange)rangeOfData:(NSData *)dataToFind
+			     options:(NSDataSearchOption)mask
+			        range:(NSRange)searchRange
+	在接收者中searchRange指定的范围内，如果能找到和dataToFind一样的数据，则返回数据的位置和长度，mask是搜索时用到的选项，使用mask可以从后向前查找，dataToFind不可以为nil。
+
+（3、比较
+
+-(BOOL)isEqualToData:(id)anObject
+	两个NSData的数据长度和内容一致时返回YES
+
+（4、文件输入和输出
+可以从文件读入数据来初始化NSData对象，或者把NSData对象中的内容输出到文件
+-(NSString *)description
+	返回一个ASCII编码格式的字符串，采用的格式是NSData属性列表的格式，数据段输出的时候采用<>括住的16进制
+-(id)initWithContentsOfFile:(NSString *)path
+			        options:(NSUInteger)mask
+				    error:(NSError **)errorPtr
+	从参数path指定的文件读入二进制数据，用该数据初始化NSData对象，如果读取文件失败，则释放调用者并返回nil，同时把错误信息写入指针errorPtr中。
+	mask便利构造器：dataWithContentsOfFile：options：error：
+-(id)initWithContentsOfFile:(NSString *)path
+	相当于上面方法中的第二个参数和第三个参数分别指定为来0和NULL
+-(BOOL)writeToFile:(NSString *)path
+	      atomically:(BOOL)flag
+	将接收者的二进制数据写日path指定的文件中，如果写入成功，则返回YES，flag选项为YES时会进行安全写操作
+
+3.2NSMutableData
+
+本节将对可变的数据类NSMutableData进行说明
+NSMutableData的实例对象在初始化后可被修改，比如增加或删除数据等
+NSMutableData会随着数据的变更自动管理内存，使用者不必关系NSMutableData对象的内存管理
+下面将对NSMutableData的几个主要方法进行说明，其中要注意的一点是，NSMutableData是NSData的子类，所以NSMutableData可以使用NSData的全部方法
+
+（1、数据对象的生成和初始化
+
+-(id)initWithCapacity:(NSUInteger)capacity
+	生成一个容量为capacity字节的NSData对象，对象的空间会随着数据的增加自动扩展。除了这个方法外，还可以使用NSData的便利构造器data来创建一个长度为空的NSData对象
+	便利构造器dataWithCapacity：
+-(id)initWithLength:(NSUInteger)capacity
+	初始化一个容量为capacity字节的NSData对象，同时将对象的数据都设为0
+	便利构造器dataWithLength
+
+（2、访问数据
+
+-(void *)mutableBytes
+	返回NSdata对象中数据缓冲区的头指针。和NSData的bytes方法不同，mutableBytes返回的指针是可写的。数据缓冲区的长度为0时，返回NULL
+
+（3、追加数据
+
+-(void)appendData:(NSData *)otherData
+	复制otherdata中的数据，并将其追加到接收者的数据缓冲区后
+-(void)appendBytes:(const void *)bytes
+		      length:(NSUInteger)length
+	在对象的末尾追加长度为length的bytes数据
+
+（4、更新数据
+
+-(void)replaceBytesInRange:(NSRange)range
+			      withBytes:(const void *)replacementBytes
+				   length:(NSUInteger) replacementLength
+	把range指定范围内的数据替换为长度为replacementLength的数据replacementBytes
+	range长度length和要替换的数据的长度replacementLength不等的话，range后面的数据会相应地被前后移动，长度也会发生变化。
+	length为0的话，就相当于向原对象的头部插入replacementBytes
+-(void)replaceBytesInRange:(NSRange)range
+			      withBytes:(const void*)bytes
+	把接收者中range指定范围内的数据替换为bytes相当于上面的方法replaceBytesInRange：withBytes：length：中 指定范围的长度和要替换的数据长度一样的情况
+-(void)setData:(NSData *)aData
+	设置NSMutableData类中的数据为aData所指向的内容
+-(void)resetBytesInRange:(NSRange) range
+	将range范围内的数据设为0
+
+（5、增长数据缓冲区的长度
+
+-(void)increaseLengthBy:(NSUInteger)extraLength
+	为数据缓冲区增加长度extraLength 新增的区域都会被初始化为0
+-(void)setLength:(NSUInteger)length
+	重设数据缓冲区的长度为length 根据length的不同，数据缓冲区可增长或缩短，数据缓冲区增长的情况下，用0来填充新增的区域
+
+
+
+
+
+
+    """},
 ];
