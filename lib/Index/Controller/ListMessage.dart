@@ -3336,4 +3336,271 @@ NSMutableData会随着数据的变更自动管理内存，使用者不必关系N
 
 
     """},
+  {'title' : '第九章（3）' , 'message' : """
+4、数组类
+
+4.1NSArray
+
+数组是对多个对象的有序集，可以通过对象在数组中的位置来访问对象。和C语言一样，数组中元素的索引是从0开始的。数组中既可以存放不同类的对象也可以存放统一类的对象，但不能存放nil，nil被用于标志数组的结束。
+
+NSArray是不可变数组，一旦创建以后，就不能再添加、删除或修改其中的元素。
+如果想要更改数组中的元素的话，就需要使用可变数组NSMutableArray。
+NSArray和NSMutableArray的实例称为数组对象
+
+下面介绍一下NSArray的一些主要方法：
+
+（1、数组对象的生成和初始化：
+
++(id)array
+	返回一个不包含任何元素的空的数组对象。可变数组NSMutableArray中经常会用到这个方法。这个方法对应的初始化方法为init
++(id)arrayWithObject:(id)anObject
+	生成并返回只包含anObject这一个元素的数组
+-(id)initWithObjects:(id)firstObj,….
+	生成并返回数组，数组中的元素由参数指定，参数之间用逗号分割，并以nil结尾
+	便利构造器：arrayWithObjects：
+-(id)initWithObjects:(const id *)objects
+		       count:(NSUInteger)count
+	参数objects是一个C语言风格的对象数组。这个方法会返回一个包含objects中前count个对象的数组
+	便利构造器：arrayWithObjects：count：
+-(id)initWithArray:(NSArray *)anArray
+	用已有数组anArray中的对象来初始化并返回一个新的数组，anArray也可以是可变数组NSMutableArray的对象，所以这个方法也可以被用来从一个可变数组生成一个不可变数组
+	便利构造器：arrayWithArray
+-(id)initWithArray:(NSArray *)array
+	   copyItems:(BOOL)flag
+	和上面的方法的功能一样，唯一的区别是flag为真的情况下，会用array中的每一个元素的副本生成新的数组
+
+
+（2、访问数组中的元素
+
+-(NSUInteger)count
+	返回数组中元素的个数
+-(NSUInteger)indexOfObject:(id)anObject
+	在数组中查询看是否有和anObject相等的元素，如果有就返回这个元素的索引，否则就返回NSNotFound（NSNotFound是一个宏，表示没有找到某个内容）如果只想查询数组中是否包含某个元素的话，可以使用方法containsObject：
+-(id)objectAtIndex:(NSUInteger)index
+	返回index索引位置的元素，如果index超过数组的最大长度的话，就会触发异常NSRangeException的发生
+-(id)lastObject
+	返回数组中最后一个元素，如果接收者为空的话，则返回nil
+-(void)getObject:(id __unsafe_unretained [])aBuffer
+		 range:(NSRange)aRange
+	将aRnage指定范围内的对象复制到aBuffer指定的C语言缓冲区。只复制指针，引用计数不发生变化，也就是说不会发生任何所有权的改变，使用ARC的时候，为了保持数组中的对象，会讲起赋值给另一个强引用的变量。aBuffer需要足够强大，以能放下所有数据
+-(NSArray *)subarrayWithRange:(NSRange)range
+	抽取原数组中的一部分来生成一个新的数组
+
+（3、比较
+
+-(BOOL)isEqualToArray:(id)anObject
+	比较两个数组是否一致，如果消息的接收者和anOBject包含的元素个数相同，而且相同索引位置处的元素相等的话，则返回YES
+-(id)firstObjectCommonWithArray:(NSArray *)otherArray
+	返回消息的接收者和otherArray这两个数组中第一个相同的元素，如果2个数组没有相同的元素，则返回nil
+
+（4、为数组增加新的对象
+NSArray是不可变类型的对象，不可以直接为其增加对象。如果想为数组对象增加新的对象的话，可以返回一个新的数组，新数组由原来的数组和新增对象共同构成
+
+-(NSArray *)arrayByAddingObject:(id)anObject
+	新生成并返回一个数组对象，新数组中的元素由消息接收者的元素和anObject共同构成，anObject加在新数组的末尾
+-(NSArray *)arrayByAddingObjectFromArray:(NSArray *)anArray
+	新生成并返回一个数组对象，新数组中的元素由消息接收者的元素和anArray中的元素共同构成，anArray中的元素加在原数组的末尾
+
+（5、排序
+NSArray的排序方法会返回一个新的数组，新数组是对旧数组中的元素经过选择器排序后的数组
+
+-(NSArray *)sortedArrayUsingSelector:(SEL)comparator
+	对数组中的对象逐个进行比较，并根据比较的结构生成一个新的数组。
+	数组对象之间比较的时候使用选择器comparator指定的方法，选择器要求有一个输入参数，返回值
+	例如，如果要对一个NSString的NSArray进行排序的话，选择器可以使用NSString的方法compare：
+	newArray=[anArray sortedArrayUsingSelector:@selector(compare:)];
+
+-(NSArray *)sortedArrayUsingFunction:(NSInteger (*)(id, id, void *))comparator context:(void *)context
+	这个方法和上面的方法一样，也是对NSArray中的元素进行排序，返回一个排好序的新的NSArray
+	区别在于对数组中元素进行比较的时候使用的函数是comparator。函数comparator有三个参数，前两个分别是数组中的元素，第三个是比较时自定义的一些选项，例如可以设置为忽略大小写等。函数的返回值是NSCommparisonResult类型。comparator是一个函数指针
+	一个排序用的函数的定义如下： 	NSInteger myCmp(id arg1,id arg2,void * context);
+
+（6、给数组中的元素发送消息
+可以给数组中的每个对象发送消息，消息通过参数的消息选择器来指定
+发送消息的时候会从第一个元素开始直到最后一个元素结束
+元素在相应消息的同时有可能会发生波及作用，例如数组自身发生变化等，这种情况下就无法拨阿正最后一个元素也能成功响应消息
+
+-(void)makeObjectsPerformSelector:(SEL)aSelector
+	给数组中的每个对象发送消息，通过aSelector来指定消息
+-(void)makeObjectsPerformSelector:(SEL)aSelector
+					 withObject:(id)anObj
+	给数组中的每个对象发送消息，通过aSelecotr来指定消息，消息可带有一个参数，通过anObj来指定
+
+（7、文件输入与输出
+
+-(NSString *)description
+	将数组对象中的内容以ASCII编码的属性列表格式的字符串返回，返回由给数组汇中每个元素发送description消息而得到的字符串，字符串之间用“，”，并用（）括起来
+-(id)initWithContentsOfFile:(NSString *)aPath
+	从属性列表文件读取内容来初始化一个NSArray，如果读入失败，则释放消息接收者并返回nil
+	便利构造器：arrayWithContentsOfFile
+-(BOOL)writeToFile:(NSString *)Path
+	      atomically:(BOOL)flag
+	将数组中的内容以属性列表的格式写入aPath指定的文件中，正常写入是返回YES，flag为YES的情况下，执行安全写入。可以参考NSString的方法writeToFile：atomically：encoding：error
+-(NSString *)componentsJoinedByString:(NSString *)separator
+	返回一个临时字符串，字符串的内容用“，”连接的数组中每一个元素执行description的结果
+-(NSArray *)pathsMatchingExtensions:(NSArray *)filterTypes
+	这个方法被用于筛选带有特定扩展名的字符串，返回的是一个临时数组，数组汇中的每个元素的扩展名都属于filterTypes 逐个检测消息接收者数组中的每个元素，如果其扩展名在数组filterTypes中，就将其放入临时数组中
+
+
+4.2NSMutableArray
+
+NSMutableArray是NSArray的子类，所以可以使用NArray中定义的全部方法，NSMutableArray的接口也定义在文件Found/NSArray.h中
+NSMutableDictionary是可变的，所以可随意添加或删除其中的元素，NSMutableDictionary中不存在空的位置
+
+（1、可变数组的初始化
+
+-(id)initWithCapacity:(NSUInteger)numItems
+	创建并初始化一个长度为numitems的可变数组，虽然NSMutableArray会随着其中元素的增减自动管理内存，但也可以在初始化的时候指定数组的大小，也可以使用NSArray的Array方法创建一个长度为0的可变数组
+	便利构造器：arrayWithCapacity
+
+（2、向数组中追加和替换元素
+基于引用计数的内存管理模式下，会给加入数组的对象发送retain消息，给从数组删除的对象发送release消息
+
+-(void)addObject:(id)anObject
+	添加元素anObject到数组的末尾，anObject不可以为nil
+-(void)addObjectsFromArray:(NSArray *)otherArray
+	将otherArray数组中的元素添加到数组的末尾
+-(void)insertObject:(id)anObject
+		   atIndex:(NSUInteger)index
+	添加anObject到index指定的位置，后面的元素顺次后移，index必须在0和数组范围之间
+-(void)replaceObjectAtIndex:(NSUInteger)index
+			    withObject:(id)anObject
+	用anObject指定的对象代替index位置上的元素，若index超过数组范围，则返回NSRangeException，anObject不可为nil
+-(void)replaceObjectsInRange:(NSRange)aRange
+	    withObjectsFromArray:(NSArray *)otherArray
+	使用otherArray数组中的元素替换当前数组中的aRange范围内的元素。当前数组中aRange范围内的元素会被删掉
+-(void)setArray:(NSArray *)otherArray
+	用otherArray数组中的元素替换当前数组中的所有元素，当前数组中的所有元素会被删除
+-(void)exchangeObjectAtIndex:(NSUInteger)idx1
+		    withObjectAtIndex:(NSUInteger)idx2
+	交换idx1和idx2位置上的元素
+
+（3、删除数组中的元素
+所有被删除的元素都会发送release消息
+-(void)removeAllObjects
+	删除数组中的所有元素，将其置空
+-(void)removeLastObject
+	删除数组中的最后一个元素
+-(void)removeObjectAtIndex:(NSUInteger)index
+	删除数组中的指定位置处的元素
+-(void)removeObjectInRange:(NSRange)aRange
+	删除数组中指定范围内的元素
+-(void)removeObject:(id)anObject
+	删除数组中所有和anObject相等的元素，可以使用方法isEqual：来判断数组中的元素是否和anObject相等，返回为YES的时候代表两个元素相等
+-(void)removeObjectsInArray:(NSArray *)otherArray
+	从当前数组中删除otherArray数组中包含的所有元素
+
+（4、排序
+
+-(void)sortUsingSelector:(SEL)comparator
+	对当前数组中的元素进行升序排序
+	排序时使用指定的selector：comparator来进行元素之间的比较
+-(void)sortUsingFunction:(NSInteger(*)(id, id, void *))compare context:(void *)cintext
+	对当前数组中的元素进行升序排序
+	排序时使用传入的compare来进行元素之间的比较
+
+
+4.3数组对象的所有权
+
+基于引用计数的内存管理模式下，需要注意数组中的对象的所有权
+数组会给其中的所有对象发送retain消息。当数组被释放的时候，他会给数组中的所有对象发送release消息，当对象被从数组中删除时，他也会收到一条release消息
+
+数组、集合和词典对象这些可以包括多个对象的容器被总称为集合
+
+4.4快速枚举
+
+ObjectiveC 2.0 新提供了一个用于遍历容器类的语法，叫作快速枚举
+
+下面就是利用快速枚举来遍历group的一个例子，遍历过程中group自身不会发生任何变化
+
+id obj;
+for(obj in group){
+	printf(“%s\n”,[[obj description] UTF8String]);
+}
+
+这本书中吧这种语法称为for in 语法
+for(变量 in 集合){
+	/*相应的处理*/
+}
+
+其中“变量”必须是可以放入到容器中的类型。“集合”是一个容器类的对象。第一次执行循环之前会判断“集合”是否合法和其中是否有元素
+
+4.5枚举器NSEnumerator
+
+枚举器是一个用来遍历集合类（NSArray NSSet、NSDictionary等）中的元素对象的抽象类。ObjectiveC2.0中新增更方便地遍历集合类的for in语法
+枚举器没有用来创建实例的公有接口，不能给枚举器发送alloc消息，需要和集合类配合使用，返回一个用于遍历的实例对象，NSEnumerator的接口定义在Foundation/NSEnumerator.h中
+
+NSEnumerator中有2个抽象方法
+-(id)nextObject
+	nextObject方法可以依次遍历每个集合元素，结束时返回nil。通过和while结合使用可遍历集合中所有的项
+-(NSArray *)allObjects
+	allObjects方法可以返回集合中未被遍历的所有元素的数组
+
+不同的集合类返回枚举器的方法各不相同 例如数组NSArray类返回枚举器的两个方法如下
+-(NSEnumerator *)objectEnumerator
+	返回一个按照顺序进行遍历的枚举器
+-(NSEnumerator *)reverseObjectEnumerator
+	返回一个按照逆序进行遍历的枚举器
+
+下面是一个使用枚举器来按照顺序遍历数组的例子
+
+NSArray *myarray;
+id obj;
+NSEnumerator *enumerator;
+…
+enumerator =[myarray objectEnumerator];
+while((obj =[enumerator nextObject]) !=nil){
+	/*处理*/
+}
+
+在使用枚举器遍历一个集合对象的同时，如果向该集合对象增加或删除对象，就可能会导致不可预期的结果，是很危险的
+
+4.6快速枚举和枚举器
+
+下面是一个利用逆序枚举器来遍历数组的例子
+enumerator =[myarray reverseObjectEnumerator];//获取一个逆序枚举器
+for (obj in enumerator){
+	/*处理*/
+}
+
+4.7集合类
+
+Foundation框架中提供了NSSet类，他是一组单值对象的集合，同NSArray不同，NSSet是无序的，同一个对象只能保存一次。集合类也有两个，即不可变的NSSet类和可变的NSMutableSet类
+NSMutableSet是NSSet的子类，以类簇的形式存在。
+除此之外，类NSMutableSet还有一个子类NSCountedSet。NSCuntedSet是一个可变的集合类，能够统计集合中对象的个数，这个类中可以存放对个相同值的对象
+
+集合类的接口定义在Foundation/NSSet.h中
+在基于引用计数的内存管理模式下，对元素对象所有权的处理和NSArray一样，即把对象放入集合的时候方法retain消息，把对象从集合中删除的时候发送relase消息
+
++(id)set
+	返回一个临时的空的集合对象，对呀的初始化方法是init
+-(id)initWithArray:(NSArray *)array
+	使用参数array中的元素来初始化生成一个集合，array中存在重复元素时，集合中只保存一个。处理这个函数之外，集合类还包含由nil结尾的对象列表创建的集合的初始化构造函数、参数是C语言风格的数组的初始化构造函数，以及以上各个函数相应的便利构造器
+-(NSUInteger)count
+	返回集合对象中包含的元素个数
+-(NSArray *)allObjects
+	将集合对象中所有的元素以数组的形式返回
+-(BOOL)containsObject:(id)anObject
+	判断指定的anObject元素是否位于集合中，如果是则返回YES
+-(BOOL)isEqualToSet:(NSSet *)otherSet
+	判断2个集合是否相等，相等返回YES
+-(BOOL)isSubsetOfSet:(NSSet *)otherSet
+	判断当前合集的对象是否全部位于集合otherSet中，如果是则返回YES
+-(BOOL)intersectsSet:(NSSet *)otherSet
+	判断两个合集是否有共通的元素，如果有则返回YES
+
+下面说明NSMutableSet中的方法：
+-(id)initWithCapacity:(NSUInteger)numItems
+	初始化一个大小为numItems的集合
+	便利构造器：setWithCapacity：
+-(void)addObject:(id)anObject
+	向集合中追加元素anObject，如果集合中已经有这个元素，就什么也不会发生
+	同样，方法addObjectsFromArray：的意思是把anObject数组中的所有元素追加到集合中
+-(void)removeObject:(id)anObject
+	从集合中删除元素anObject
+-(void)unionSet:(NSSet *)otherSet
+	将集合otherSet中的元素加入到当前集合中，生成2个集合的并集
+	同样，方法minusSet：是从当前集合中删除同输入集合共通的元素
+	方法intersectSet：是生成2个集合的交集
+    """},
 ];
