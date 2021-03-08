@@ -3603,4 +3603,99 @@ NSMutableSet是NSSet的子类，以类簇的形式存在。
 	同样，方法minusSet：是从当前集合中删除同输入集合共通的元素
 	方法intersectSet：是生成2个集合的交集
     """},
+  {'title' : '第九章（4）' , 'message' : """
+5、词典类 
+Cocoa Foundation框架中童工了一种和Java/C++中map相类似的数据结构，叫作词典。
+词典也可以分为 不可变词典NSDictionary和可变词典NSMutableDictionary
+词典中的数据以键值对的形式保存，一个键值对称为entry，键和值可以是任何对象，一般使用字符串作为键
+￼
+在面向过程的语言中，一般使用下标或成员名来回去数组或结构体的值。词典对象的key和value都可以是对象类型，所以可扩展性非常高，可以用子啊各种环境下
+词典的键必须是唯一的，也就是说，使用方法isEqual：来比较各个键时，必须各不相等。两外，nil不能作为词典的键
+词典对象的值可以是除了nil外的任意对象，也可以是数组对象或词典对象，如果向保存数值或坐标对象的话，可以使用后面将介绍到的NSNumber和NSValue对象，另外，也可以使用NSNull来表明一个词典对象为空
+一个对象作为词典的key或者value时，词典中存放的是这个对象的一份副本
+基于引用计数的内存管理模式下，会给加入词典的key和value都发送一次retain，是他们引用计数器加1，在词典对象被释放的时候，会给词典的所有key和value对象发送一次release消息，使计数器减1
+
+5.1NSDictionary
+
+类NSDictionary是不可变的词典类，一旦创建之后就只能查询，不可再增加删除或者修改其中的内容，如果创建之后还想继续修改的话，请使用后面将要介绍到的类NSMutableDictionary
+NSDictionary的接口定义在Foundation/NSDictionary.h中。NSDictionary是以类簇的方式实现的，所以无法用通常的方法为NSDictionary创建子类
+
+（1、词典对象的生成和初始化
+
++(id)dictionary
+	生成并返回一个空的词典对象，可变词典NSMutableDictionary经常使用这个方法返回一个空的词典，然后再通过init来初始化
++(id)dictionaryWithObject:(id)anObject
+				forKey:(id)aKey
+	返回一个词典对象，其中只包含一个关键字为aKey，值为anObject的键值对
+-(id)initWithObjects:(NSArray *)objects
+		    forKeys:(NSArray *)keys
+	从数组object和keys中各取出一个元素作为value和key的键值对，返回包含该键值对的词典对象。数组objects和keys中必须包含相同数量的对象
+	便利构造器：dictionaryWithObjects：forKeys：
+-(id)initWithObjects:(const id[])objects
+		    forKeys:(const id [])keys
+		       count:(NSUInteger)count
+	返回一个词典对象，由objects和keys数组中的元素作为键值对来初始化，词典对象中包含的元素个数由count来指定
+-(id)initWithObjectsAndKeys:(id)object,(id)key,…
+	使用指定的关键字和值来初始化词典对象，键值对以nil结束
+-(id)initWithDictionary:(NSDictionary *)otherDictionary
+	用一个一存在的词典对象来初始化另一个
+	这个方法的参数也可以是一个可变词典对象NSMutableDictionary，这时能够为可变词典创建一个同样内容的比可变词典对象
+	便利构造器：dictionaryWithDictionary：
+
+（2、访问词典对象
+-(NSUInteger)count
+	返回词典对象中键值对的数量
+-(id)objectForKey:(id)aKey
+	返回指定aKey对应的值，如果aKey不存在就返回nil
+-(NSArray *)allKeys
+	返回一个数组，其中包含词典对象所有的关键词，如果词典对象为空，则返回一个空数组，方法allVlaue与此类似，返回一个包含词典对象所有值的数组
+-(NSEnumerator *)keyEnumerator
+	返回一个可访问词典中所有关键字的快速枚举器，与此类似，方法objectEnumerator返回一个可访问词典中所有值对象的快速枚举器
+-(NSArray *)allKeysForObject:(id)anObject
+	返回一个数组，数组中的元素为词典中值为anObject的所有关键字，如果输入的值在数组中不存在，则返回一个nil，使用方法isEqual：来进行比较
+
+（3、比较
+
+-(BOOL)isEqualToDictionary:(id)anObject
+	比较两个字典，如果两个字典的键值对数和两个字典的每个关键字及其对应的值都相等，则返回YES
+
+（4、文件输入输出
+可以通过文件来初始化词典对象或吧词典对象中的内容输出到一个文件，文件的输入和输出都是通过属性列表完成的
+-(NSString *)description
+	将词典对象的内容以ASCII编码的属性列表格式输出
+	如果词典的关键字是字符串类型，就按照升序输出，如果不是字符串类型，则随机输出
+-(id)initWithContentsOfFile:(NSString *)path
+	从属性列表格式保存的文件来初始化词典对象，如果读取文件失败，则释放词典对象，返回nil
+-(BOOL)writeToFile:(NSString *)path
+	      atomically:(BOOL)flag
+	把代表这个词典内容的属性列表输出到指定的文件，写入成功时返回YES，writeToFIle：方法中有一个BOOL类型的参数flag，如果flag为YES，则代表安全写入
+
+5.2NSMutableDictionary
+
+NSMutableDictionary允许随意添加删除或修改键值对，随着词典中元素的变更，NSMutableDictionary会自动管理内存
+
+（1、词典对象的生成和初始化
+-(id)initWithCapacity:(NSUInteger)capacity
+	创建并初始化一个长度为capacity的可变词典，虽然NSMutableDictionary会随着其中元素的增减自动管理内存，但也可以在初始化的时候指定词典对象的大小
+	便利构造器：dictionaryWithCapacity：
+
+（2、增加和删除键值对
+向词典中追加元素的时候，词典会保存一份键值的副本
+基于引用计数的内存管理模式下，会给追加的消息发送retain消息，当从字典中删除值对象的时候，则会给删除的值和值对象发送release消息
+向词典中追加键值对时，如果关键字已存在，则会用新值替换旧值。具体来说就是给原有值发送relase消息，同时给心事发送retain消息
+-(void)setObject:(id)anObject
+		forKey:(id)aKey
+	向可变词典中添加元素，要追加的关键值和值都不能为nil
+-(void)addEntriesFromDictionary:(NSDictionary *)otherDic
+	将otherDic中的数据追加到当前词典中吗，如果两个词典的关键字相同，则以otherDic的值作为最终值
+-(void)setDictionary:(NSDictionary *)otherDic
+	用新的词典otherDic覆盖当前词典，当前词典中的所有数据都被删除
+-(void)remveObjectForKey:(id)aKey
+	删除关键字为aKye的键值对
+-(void)removeObjectsForKeys:(NSArray *)keyArray
+	删除键值为数组keyArray中元素的所有键值对
+-(void)removeAllObjects
+	删除词典中的所有键值对
+
+    """},
 ];
