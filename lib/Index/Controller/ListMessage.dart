@@ -3698,4 +3698,187 @@ NSMutableDictionary允许随意添加删除或修改键值对，随着词典中�
 	删除词典中的所有键值对
 
     """},
+  {'title' : '第九章（5）' , 'message' : """
+6、包裹类
+
+Cocoa Foundation框架的集合类（NSArray、NSDictionary、NSSet）中只可以放入对象，不能存储基本类型的数据，所以Cocoa提供了NSNumber类来包装cha、int、long等基本类型的数据，使其能够被放入类似于NSArray或NSDictionary的集合中。
+
+6.1NSNumber
+NSNumber的接口文件是Foundation/NSValue.h
+
+（1、生成和初始化
+
+下面的方法生成并初始化一个整数对象。注意NSInteger不是一个对象，而是基本数据类型的typedef，它被typedef成64位的long或者32位int
+
+-(id)initWithInteger:(NSInteger)value
+	对应的类方法如下：
++(NSNumber *)numberWithInteger:(NSInteger)value	
+
+表中列出来为各种数据类型生成NSNumber对象的初始化实例方法和便利构造器
+￼
+￼
+
+（2、提取包裹类中的值
+使用下面的方法可以提取出NSNumber实例中的NSInteger值，如果消息的接收者不是NSInteger的包裹类，会自动进行类型转换
+-(NSInteger)integerValue
+下表列出来包裹类中提起各种数据类型的方法
+￼
+
+（3、其他
+
+-(BOOL)isEqualToNumber:(NSNumber *)aNumber
+	比较两个NSNumber对象是否相等，返回值是BOOL类型
+-(NSComparisonResult)compare:(NSNumber *)aNumber
+	比较两个NSNumber对象的大小，返回值是一个NSComparisonResult
+-(NSString *)stringValue
+	返回NSNumber的字符串表示形式
+
+6.2NSValue
+
+NSValue的接口定义在Foundation/NSValue.h中，坐标等结构体定义在Foundation/NSGeometry.h中
+NSValue的装箱（封装）和拆箱（解封装）方法如下：
+￼
+-(BOOL)isEqualToValue:(NSValue *)value
+	比较两个NSValue对象是否相等，返回值是BOOL类型
+
+6.3类型编码和@encode()
+
+ObjectiveC是动态语言，有很多时候都不会清楚地标明对象的实际类型。但在保存数据和网络通信的时候，有时会需要明示自己的类型。NSValue和NSNumber可以包装很多类型的数据，但其内部需要保存数据的实际类型，另外，在进程或县城间通信的时候，也需要知道要发送的数据的实际类型
+ObjectiveC的数据类型甚至自定义类型，都可以使用ASCII编码的类型描述字符串来表示。@encode()可以返回给定数据类型的类型描述字符串（C风格zfc，char *表示）例如，@encode(int)返回i，@encode(NSSize)返回“{_NSSize=ff}”
+下表总结了常用的数据类型和其对应的类型描述符
+￼
+￼
+通过使用方法initWithBytes：objCType：，就可以把任意类型的结构体包装成NSValue类型的对象，方法getValue：可以提取出包装好的结构体中的数值
+-(id)initWithBytes:(const void *)value
+	     objCType:(const char *)type
+	参数type是指定的value的类型描述符，为了保证兼容性，不要通过直接输入C风格字符串来获取type，而一定要通过@encode来获取
+	便利构造器：valueWithBytes：objCType：
+-(void)getValue:(void *)buffer
+	从包装好的NSValue对象中复制数据到buffer中
+下面是一个为结构体创建NSValue实例的例子：
+static grid{
+	int x,y;
+	double weight;
+};
+struct grid foo,bar;
+id obj;
+
+对结构体foo进行封装返回一个对象obj的代码如下所示：
+	
+obj=[[NSValue alloc]initWithBytes:&foo objCType:@encode(struct grid)];
+
+把数据从obj中读入到变量bar中的代码如下所示：
+
+[obj getValue:&bar];
+
+NSValue只能包装长度确定的数据，不能包装长度可变的数据或元素可变的数组。例如，NSValue不能包装一个C风格的字符串
+
+另外，因为NSValue和NSNumber数亿类簇的形式实现的，所以无法用通常的方法为其定义子类
+
+6.4NSNull
+
+前面我们介绍过不能在数组和词典对象中放入nil，因为在数组和词典对象中，nil有着特殊的含义，但有时我们确实需要一个特殊的对象来表示空值，这种情况下，我们就可以使用NSNull这一用来表示空值的类，NSNull的接口定义子啊Foundation/NSNull.h中
+
++(NSNull *)null
+	这个方法会返回NSNull的实例对象，是一个常量，因为返回的是一个常量，所以不能用release来释放，另外NSNull的description会返回字符串<null>
+判断一个对象是否是NSNull的写法如下：
+if(obj == [NSNull null]) ….
+
+7、NSURL
+
+7.1关于URL
+
+本章将说明一下Cocoa环境中用来表示网络或本地文件位置的类NSURL
+统一资源定位符（URL）是因特网上标准的资源地址，URL除了用在因特网之外，也可以用于表示本机的资源，另外，除了HTTP协议之外，其他协议也可以使用URL来访问资源
+URL Scheme是类似于http:// ftp:// file:// 这样的东西，MAcOSX和iOS中规定了四种可以使用NSURL来访问资源的形式
+http：超文本链接协议
+https：超文本传输安全协议http的安全版本，是超文本传输协议和SSL/TLS的组合
+ftp：文件传输协议
+file:访问某台主机上的文件
+
+访问某哥资源的写法如下：
+协议名：//主机名/主机内资源的路径
+
+7.2NSURL的概要
+
+URL中有很多特有的表达方法，所以操作URL的时候应该使用专用的NSURL类，而不要把URL当作字符串来手工解析
+在介绍NSURL中的方法前，我们先来介绍一下方法名或参数名中包含的string和path的区别，string这里指的是URL的字符串，将string作为返回值的情况下，一定要返回经过url编码的字符串，方法名中如果包含了string，那么实际传入的参数也一定是经过编码的，另一方面，path用于表示URL的路径，无论作为返回值还是作为参数都要返回未编码的字符串
+
+（1、NSURL实例的生成和初始化
+
+-(id)initWithString:(NSString *)URLString
+	用表示URL的字符串URLString生成一个NSURL的对象，URLString必须是url编码之后的，如果传入的字符串解析失败，则返回nil
+	便利构造器：URLWithString：
+-(id)initWithString:(NSString *)URLString
+       relativeToURL:(NSURL *)baseURL
+	使用baseURL和相对路径URLString来生成一个NSURL对象，如果URLString想使用绝对路径，可以把baseURL设为nil，传入的字符串必须是经过了URL编码的字符串，如果传入字符串解析失败，则会返回nil
+	便利构造器：URLWithString：relativeToURL：
+-(id)initFileURLWithPath:(NSString *)path
+	用字符串格式的文件路径生成一个用于文件的NSURL对象，path不需要URL编码，如果传入的是一个相对路径，则使用调用该函数的程序的根目录作为baseURL
+	执行的时候会判断传入的path是不是一个目录，如果是一个目录的话就会自动地在其末尾加上/ 如果确定path是一个目录，可以使用initFileURLWithPath：isDirectory：生成NSURL对象
+	便利构造器：initFileURLWithPath：
+
+（2、NSURL的构成要素
+
+-(BOOL)isFileURL
+	判断消息接收者对象是否是file开头的URL
+-(NSURL *)baseURL
+	返回消息接收者对象的baseURL，如果不存在的话，返回nil
+-(NSString *)absoluteString
+	返回消息接收者对象的URL的字符串表示，返回的字符串是url编码之后的
+-(NSURL *)absoluteURL
+	如果接受消息的对象是相对路径的URL，就生成并返回这个对象的绝对路径的URL，如果接收消息的对象本身就是绝对路径的URL，则返回自己
+-(NSString *)relativePath
+	返回接收消息的对象中相对路径的部分，如果接受消息的对象是有绝对路径生成的，则返回整个绝对路径，返回的字符串是没有经过url编码的
+-(NSString *)relativeString
+	返回URL字符串中相对路径的部分，如果接受消息的对象是有绝对路径生成的，则返回URL的绝对路径，返回的字符串是URL编码之后的
+
+（3、路径操作和相关函数
+所有与路径操作相关的方法的参数和返回值都是没有经过url编码的
+
+-(NSString *)path
+	返回消息接收者对象的路径字符串，也就是主机名之后的部分
+	方法lastPathComponent可以取出URL中的最后部分，方法pathExtension可以取出路径的扩展名
+-(NSURL *)URLByAppendingPathComponent:(NSString *)pathComponent
+	在消息接收者对象URL的后面追加新的要素，返回一个新的URL对象，追加路径时别忘了追加相应的/	
+	如果想主机啊扩展名的话可以使用方法URLByAppendingPathExtension：
+-(NSURL*)URLByDeletingLastPathComponent
+	删除消息接收者对象URL的最后一个要素
+	如果想删除扩展名的话可以使用方法URLByDeletingPathExtension：
+
+（4、文件引用URL
+有两种表示文件位置的NSURL对象，一种是从文件路径字符串生成的NSURL对象，称为文件路径URL；还有一种是通过文件系统的文件ID生成的URL，这种URL交=叫作文件引用URL。文件引用UR：就算文件名被更改或者文件移动到别的地方，也能够继续索引文件
+
+-(NSURL *)fileReferenceURL
+	消息接收者对象如果是一个路径URL，返回其对应的文件引用URL对象，如果消息接收者对象不是一个本地文件，就返回nil
+	与此相对，可以通过方法filePathURL来获取一个文件引用URL对象所对应的文件URL
+-(BOOL)isFileReferenceURL
+	如果消息接收者对象是一个文件引用URL的话就返回YES
+-(BOOL)checkResourceIsReachableAndReturnError:(NSError **)error
+	判断消息接收者对象所指向的文件是否存在没如果存在的话就返回YES，参数error返回具体错误信息，如果不想返回信息，可把error设为NULL
+
+（5、获取和变更文件属性
+
+使用NSURL可以获取或变更文件、目录和文件系统的属性，一个有代表性的例子是通过NSURL可以获取文件的消息，修改时间和权限等属性，通过Foundation框架的NSFileManager也能够完成同样的功能，但还是多少有所不同。例如，通过NSURL可以改变Finder的颜色标签的颜色
+
+-(BOOL)getResourceValue:(out id *)value
+				forKey:(NSString *)key
+				   error:(out NSError **)error
+	这个方法的功能是将key指定的属性值写入value中名，获取成功的话就返回YES，失败的话就返回NO，失败的原因会写入error，value前面的out修饰符表示这个指针是用于返回传值的
+	同时获取多个属性的值的话可以使用方法resourceValuesForKeys：error：
+-(BOOL)setResourceValue:(id)value
+				forKey:(NSString *)key
+				   error:(NSError **)error
+	设定key的属性为value，设定成功的话就返回YES，失败的话就返回NO，失败原因会写入error
+	同时设定多个属性值的话可以使用方法setResourceValue：error：
+
+7.3使用NSURL来访问资源
+
+本章对FOundation框架中最常用的类进行了介绍，这些类中和文件输入输出相关的方法都是通过字符串格式的文件路径来指定的，其实这些函数都还有一个用NSURL作为参数的版本，通过使用NSURL，不仅可以指定本地的文件，还可以指定网路上的文件
+例如，许多类中都定义了下面这个方法
+-(id)initWithContentsOfFile:(NSString *)path…
+	基本所有定义了这个方法的类中都还有一个具体类似功能的以NSURL作为参数的函数，如下所示。同时，很多类中也会定义相应的便利构造器
+-(id)initWithContentsOfURL:(NSURL *)aURL…
+	原本NSURL是为了访问网络上的资源而设计的，随着Cocoa API版本的不断升级，原来很多文件输入输出的地方也开始使用NSURL，这也说明MACOSX特别是IOS也就罢网络作为自己的一部分了
+    """},
 ];
