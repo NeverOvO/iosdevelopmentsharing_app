@@ -4123,4 +4123,146 @@ NS_REQUIRES_NIL_TERMINTION自身定义在Foundation/NSObjCRuntime.h中，可以�
 所以不建议利用范畴覆盖已有方法，但是就算是覆盖了已有方法，编译器或连接器也不会提示任何警告，管理方法名的时候一定要注意不要覆盖已有的方法
 
     """},
+  {'title' : '第十章（2）' , 'message' : """
+3、关联引用
+
+3.1关联引用的概念
+
+通过范畴可以为一个类追加新的方法但不能追加实例变量。但是 利用ObjectiveC语言的动态性，并借助运行时（runingtime）的功能，就可以为已存在的实例对象增加实例变量，这个功能叫做关联引用。将这个功能和范畴组合在一起使用，即使不创建子类，也能够对类进行动态扩展
+
+一般情况下，在类定义中，该类的所有实例都能够使用接口中声明的实例变量
+与此相对，关联引用指的是在运行时根据需要为某个对象添加关联，就算是同一个类的不同对象也有可能添加（或不添加）关联或添加不同种类和数量的关联。另外，已添加的关联也可以被删除
+
+3.2添加和检索关联
+
+下面我们来看一下添加关联和检索关联用的2个方法，这2个方法的定义在头文件objc/runtime.h中
+
+void objc_setAssociatedObject(id object,void *key,id value,objc_AssociationPolicy policy)
+	这个方法是为对象object添加以key指定的地址作为关键字，以value为值的关联引用，第四个参数policy指定关联引用的存储策略
+	通过将value指定为nil，就可以删除key的关联
+
+id objc_getAssociatedObject(id object,void *key)
+	返回object以key为关键字关联的对象。如果没有关联到任何对象，则返回nil
+
+本章中把药增加关联的对象（想扩展的对象）称为所有者，把追加的对象称为引用对象
+例如，假设我们要为obj增加r和s两个关联引用。那么obj就是所有者，r和s就是引用对象。考虑到可以为一个对象增加多个关联引用，所以要用key来区分，另外，必须使用确定的、不再改变的地址作为键值。例如，使用定义在实现文件中的静态局部变量的地址作为key就是一个不错的选择。关于策略policy，我们将会在后面进行详细介绍
+
+static char rKey,sKey; // 静态变量，这里只利用他们的地址作为key
+…
+objc_setAssociatedObject(obj,&rKey,r,OBJC_ASSOCIATION_RETAIN);
+objc_setAssociatedObject(obj,&sKey,s,OBJC_ASSOCIATION_RETAIN);
+…
+id x= objc_getAssociatedObject(obj,&rKey);
+id y= objc_getAssociatedObject(obj,&sKey);
+
+以上的操作就相当于将x和y分别赋值给来r和s，使用地址作为key的原因是为了保证唯一性，上面例子中的变量rKey和sKEy不会被用来存储什么，也不会对其进行赋值操作
+在上例中，函数调用时的第一个参数都用来obj，其实这个位置可以使用任意对象，如果关联引用的目的是给一个对象增加实例变量的话，这个地方可以使用self代替obj，使用self的情况下，因为运行时self表示的对象不同，所以就算是使用同一个key作为键值也无所谓。关于这点，后面会通过一个具体例子进行详细说明
+
+3.3对象的存储方法
+
+objc_setAssociationObject()的第四个参数policy是关联策略。关联策略表明了关联的对象是通过何种方式进行关联的，以及这种关联是原子的还是非原子的，policy的值有以下几种可供选择，其中最常用的是OBJC_ASSOCIATION_RETAIN
+截止到写作本书的时候，内存管理使用ARC的情况下，相当于弱指针的对象保存方式好像还没有出现没如果指定存储策略为OBJC_ASSOCIATION_RETAIN,就是通过保持的方式进行关联，而ARC的情况下，指定OBJC_ASSOCIATION_ASSIGN则表示赋值的方式进行关联，可能会出线悬垂指针，编程的时候一定要注意
+
+OBJC_ASSOCIATION_ASSIGN
+	使用基于引用计数的内存管理时，不给关联对象发送retain消息，仅仅通过赋值进行关联，内存管理使用垃圾回收时，会把引用对象作为弱引用保存
+OBJC_ASSOCIATION_RETAIN_NONATOMIC
+	使用基于引用计数的内存管理时，会给关联对象发送retain消息并保持，如果同样的key已经关联到了其他对象，则会给其他对象发送release消息，释放关联对象的所有者时，会给所有的关联对象发送release消息，内存管理使用垃圾回收时，会以强引用的形式保存关联对象 OBJC_ASSOCIATION_RETAIN
+	在对象的保存方面和OBJC_ASSOCIATION_RETAIN_NONATOMIC的功能一样，唯一有区别的时OBJC_ASSOCIATION_RETAIN是多线程安全的，支持排他性的关联操作 OBJC_ASSOCIATION_COPY_NONATOMIC
+	在进行对象关联引用的时候会复制一份原对象，并用新复制的对象进行关联操作
+OBJC_ASSOCIATION_COPY
+	在对象的保存方面和OBJC_ASSOCIATION_COPY_NONATOMIC的功能是一样的，唯一区别的是OBJC_ASSOCIATION_COPY是多线程安全的，支持排他性的关联操作，objc_getAssociatedObject()的操作和OBJC_ASSOCIATION_RETAIN一样
+
+要复制一个对象需要实现第13章说明的方法
+
+3.4断开关联
+
+ObjectiveC也提供了运行时断开关联的函数
+
+void objc_removeAssociatedObjects(id object)
+	断开object的所有关联
+
+这个函数会断开object对象的所有关联，有一定的危险性。例如，已有代码可能已经使用了关联的对象，有的带吗新添加的范畴也可能会使用到已关联的对象，所以不建议使用objc_removeAssociatedObjects一次性断开所有关联，推荐使用objc_setAssociatedObject,传入nil作为其参数，来分别断开关联
+
+3.5利用范畴的例子
+
+下面我们来看一个使用范畴的例子，假设我们要给NSArray增加一个新的随机取元素的方法，这个方法取得的元素可以相同，但不可以恋曲取得相同的元素
+
+我们利用范畴为NSArray定义这样的一个方法，因为需要记忆前一次取得的元素，所以使用了关联引用
+
+代码清单 10-4  NSArray+Random.h
+
+#import <Foundation/NSArray.h>
+@interface NSArray (Random)
+-(id) anyOne;
+@end
+
+代码清单10-5 NSArray+Random.m
+
+#import "NSArray+Random.h"
+#import <objc/runtime.h>
+
+@implementation NSArray (Random)
+
+static  char prevKey;//定义键使用的地址变量
+
+static int random_value(void){ //使用线性同余法
+                               //生成随机数
+    static unsigned long rnd =201008;//随机数种子，可随机设置
+    rnd = rnd *1103515245UL +12345;
+    return (int)((rnd >>16) & 0x7fff);
+}
+-(id)anyOne{
+    id item;
+    NSUInteger count = [self count];
+    if(count ==0)
+        return nil;
+    if(count ==1)
+        item =[self lastObject];
+    else{
+        id prev = objc_getAssociatedObject(self , &prevKey);//初次使用关联引用返回nil
+        NSUInteger index =random_value() %count;
+        item =[self objectAtIndex:index];
+        if(item == prev){//如果和上回取得的值相同
+            if(++index >=count)//索引+1
+                index =0;
+            item =[self objectAtIndex:index];
+        }
+    }
+    objc_setAssociatedObject(self,&prevKey,item,OBJC_ASSOCIATION_RETAIN);//存储h最后返回的对象
+    return item;
+}
+
+@end
+
+代码清单10-4 是范畴的头文件，其中只增加了一个方法。代码清单10-5中首先定义了用做关联引用的键值的static变量，static变量定义在范畴实现文件中，其他范畴无法使用这个变量的地址，函数random_value中使用线性同余法生成了随机数，NSArray以及它的子类都能够使用函数random_value和anyOne
+
+anyOne方法首先会查看数组中有多是奥哥函数，如果有2个以上的话，就调用random_value方法随机生成索引，并用索引获得要返回的值，如果这次的值和上次返回的值相等，则索引值加1，最后，把要返回的元素登记到关联引用，以便下次比较使用
+因为关联到各个实例对象的是不同的元素，所以多个实例对象也可以使用这个方法。item和实例变量一样可以被作为各实例变量自身的值来使用，另外，不使用这个方法的实例变量也不会生成关联引用。
+
+代码清单10-6展示了使用以上范畴的main函数，这里同时声明了2个NSArray对象，其中一个是NSarray的子类NSMutableArray，随着循环的进行元素的个数会增加
+
+代码清单10-6 main.m
+
+#import "NSArray+Random.h"
+#import <Foundation/Foundation.h>
+
+int main(void) { //使用ARC
+    @autoreleasepool {
+        id arr1 =[NSArray arrayWithObjects:@"A",@"B",@"C",@"D",@"E",@"F",@"G",@"H",nil];
+        id arr2 = [NSMutableArray arrayWithObjects:@"01",@"02",@"03",@"04",nil];
+        for(int i=5;i<20;i++){
+            @autoreleasepool {
+                printf("%s %s\n",[[arr1 anyOne] UTF8String],[[arr2 anyOne] UTF8String]);
+                [arr2 addObject:[NSString stringWithFormat:@"%02d",i]];
+            }
+        }
+    }
+    return 0;
+}
+
+通过综合使用关联引用和范畴，可以大大增强ObjecitveC编程的灵活性，但也要注意不能滥用范畴，滥用范畴会导致程序变得不好理解，因此，在使用范畴之前，要考虑是否有其他方法，比如创建子类等，另外，因为通过范畴扩展添加的实例变量并不是真正的实例变量，所以在对象复制和归档时要特别注意
+
+
+
+    """},
 ];
