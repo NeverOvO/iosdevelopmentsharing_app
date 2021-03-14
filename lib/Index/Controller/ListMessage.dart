@@ -4265,4 +4265,212 @@ int main(void) { //使用ARC
 
 
     """},
+  {'title' : '第十一章（1）' , 'message' : """
+1、抽象类
+
+我们都知道使用绘图工具就可以在窗口中绘制圆形、长方形、三角形等图形。虽然这些图形与窗口中的表示方法、鼠标绘图的方法有些不同，但操作鼠标时的动作（如移动，扩大、缩小）颜色的指定、复制操作都等对应了同一个消息
+这种情况下，美中图形移动相关的方法等都要分别定义，同样的工作我们不得不重复好多次
+￼
+上图中圆为超类，而长方形是它的子类，显然这样的类层次结构让人感到很不自然，而且也会给以后的使用带来很多问题
+按照一般思维，可能最容易被人接受的方法就是定义一个图形了，并将圆和长方形都定义为它的子类。移动、复制等图形的公共操作在图形类中描述，而具体的绘图方法则在子类中定义
+对于超类图形来说，尽管每个子类只是实现方法上有所不同，但他们都需要分别声明，这样一来，只要是图形类的子类，就能实现对应超类图形的方法，因此我们事先将对象的类型定义为超类图形，就可以使用静态类型check来书写代码，但是，超类图形自身并不能绘制具体的图形，所以，不能生成对象实例。
+￼
+如图，在定义子类是，在子类中只声明那些需要具体定义的方法，这样的类就是抽象类，或者称为虚类
+ObjectiveC在语法上并没有什么特别的机制来区分抽象类和能够生成实例的普通类的定义，在ObjectiveC中抽象类这一术语只停留在概念上，而大多数面向对象的语言都使用virtual或abstract作为关键字来指明抽象类
+
+在ObjectiveC中，即使是抽象类，只要能够使用alloc方法，也可以生成类实例，但折磨做没有什么实际意义，例如，类NSObjecit可以生成实例，但几乎没有什么用处，只能为子类提供有用的公共方法，从这点看来，我们可以说类NSObject具有很强的抽象类特质
+
+1.2抽象类的例子
+
+例如，我们试着在不使用GUI的条件下，编写一个简单的图形类，据此来告诉大家抽象类到底为何物，以及到底该如何使用：
+
+代码清单11-1 类Figure的接口部分
+
+Figure.h
+
+#import <Foundation/NSObject.h>
+#import <Foundation/NSGeometry.h>
+
+@class NSString;
+
+@interface Figure : NSObject
+@property(assign) NSPoint location;//设置图形的位置
+-(void)setSize :(NSSize)newsize;//指定图形大小
+-(double)area;//计算图形大小
+-(NSString *)figureName;//返回表示图形名字的字符串
+-(NSString *)stringOfSize;//返回表示图形大小的字符串
+-(NSString *)description;//当前图形的位置d、大小
+                         //返回表示图形面积的字符串
+@end
+
+类Figure并没有规定具体的子类的实例是什么形状的名单在结构体NSPoint类的属性location中保存了图形的位置坐标。类型NSPoint包含CGFloat类型的成员x、y表示画面上点的坐标
+
+方法setSize的参数为结构体NSSize，类NSSize定义了CGFloat类型的成员width和height 表示长方形的大小
+
+代码清单11-2类Figure
+
+Figure.m
+
+#import <Foundation/NSString.h>
+#import "Figure.h"
+
+@implementation Figure
+
+@synthesize location;
+-(void)setSize:(NSSize)newsize{
+    /*virtual*/
+}
+-(double)area{
+    return 0.0;
+}
+-(NSString *)figureName{
+    return nil;
+}
+-(NSString *)stringOfSize{
+    return nil;
+}
+-(NSString *)description{
+    NSPoint loc=self.location;
+    return [NSString stringWithFormat:@"%@ : location=(%.2f,%.2f), %@,area =%.2f",[self figureName],loc.x,loc.y,[self stringOfSize],[self area]];
+}
+@end
+
+首先 属性location由@synthesize来定义，子类中也使用该定义，需要注意的是，其他方法的定义实质上是没有意义的
+请大家注意最后定义的方法description，该方法会返回包含了图形名字，位置，大小，面积的字符串，在返回构造的字符串时，还会向self发送消息来获得相应的值
+方法哪的self并不能被当作Figure类的直接调用接口，而是向某种具体的表示图形的子类的实例发送description消息时的接口，此时，self表示的是那个图形类的接口，因此，通过使用那个子类中的定义，方法area就会计算出面积，方法stringOfSize也会返回表示大小的字符串
+不仅在抽象类的定义中，在面向对象的语言中，我们也经常使用超类来实现子类的定义，虽然滥用的话会导致程序难于理解，但如果能熟练使用，对构筑灵活、易扩展的类层次关系还是非常有益的
+
+下面代码清单表示的是类Figure的子类，即表示圆形的Circle和表示长方形的Rectangle
+
+代码清单11-3 类Circle的接口部分
+
+Circle.h
+
+#import "Figure.h"
+@interface Circle : Figure{
+    double radius;
+}
+@end
+
+代码清单11-4 类Circle的实现部分
+
+Circle.m
+
+#import <Foundation/NSString.h>
+#import "Circle.h"
+#import <math.h>
+
+#define PI 3.14159
+
+@implementation Circle
+
+-(void)setSize:(NSSize)newsize{
+    double x = newsize.width;
+    double y = newsize.height;
+    radius = sqrt(x*y+y*y);
+}
+-(double)area{
+    return radius *radius *PI;
+}
+-(NSString *)figureName{
+    return @"Circle";
+}
+-(NSString *)stringOfSize{
+    return [NSString stringWithFormat:@"radius=%.2f",radius];
+}
+
+@end
+
+类Circle的大小用半径，也就是接口参数radius来表示，方法setSize：用来设定大小，该方法用长方形对角线长作为参数来确定半径，这和鼠标拖拽时以起点为圆心，将起点到终点的距离作为半径的方法类似
+
+代码清单11-5 类Rectangle的接口部分
+
+Rectangle.h
+
+#import "Figure.h"
+
+@interface Rectangle : Figure{
+    NSSize size;
+}
+
+@end
+
+代码清单11-6 类Rectangle的实现部分
+
+Rectangle.m
+
+#import <Foundation/NSString.h>
+#import "Rectangle.h"
+
+@implementation Rectangle
+
+-(void)setSize:(NSSize)newsize{
+    size =newsize;
+}
+-(double)area{
+    return size.width *size.height;
+}
+-(NSString *)figureName{
+    return (size.width == size.height) ? @"Square" : @"Rectangele";
+}
+-(NSString *)stringOfSize{
+    return [NSString stringWithFormat:@"size = %.2f x %.2f",size.width,size.height];
+}
+
+@end
+
+类Rectangle中使用宽和高两个参数来表示图形的大小，通过方法figureName查找图形名时，如果宽澄宇高，则返回正方形
+最后我们来看一下测试该类的main函数，虽然有点啰嗦，但却是难点所在，使用ARC进行内存管理，测试流程的本体时函数testLoop这里需要注意的是，变量fit的类型为（Figure *）
+
+代码清单11-7 测试类Figure的main函数
+
+#import "Figure.h"
+#import "Circle.h"
+#import "Rectangle.h"
+#import <Foundation/NSString.h>
+#import <stdio.h>
+
+BOOL testloop(void){
+    Figure *fig =nil;
+    double x,y,w,h;
+    char buf[64],com;
+    
+    do{
+        printf("Share (C=Circle,R=Rectangle,Q=Quit) ?");
+        if(scanf("%s",buf) == 0||(com =buf[0]) == 'Q' || com=='q')
+            return NO;
+        switch (com) {
+            case 'C':
+            case 'c':
+                //Circle
+                fig = [[Circle alloc]init];
+                break;
+            case 'R':
+            case 'r':
+                //Rectangle
+                fig=[[Rectangle alloc ]init];
+                break;
+        }
+    }while(fig == nil);
+    printf("Location ?");
+    scanf("%lf %lf",&x,&y);
+    fig.location=NSMakePoint(x, y);//生成NSPoint
+    printf("Size ?");
+    scanf("%lf %lf",&w,&h);
+    [fig setSize:NSMakeSize(w, h)];//生成NSSize并设定
+    printf("%s\n",[[fig description] UTF8String]);
+    return YES;
+}
+int main(void){
+    BOOL flag;
+    do{
+        @autoreleasepool {
+            flag=testloop();
+        }
+    }while(flag);//循环知道输入Q为止
+    return 0;
+}
+
+首先，从终端读入字符串，如果字符串的开头是C就生成圆形的实例，而如果开头是R则生成长方形的实例，并将其赋值给变量fit，然后，输入图形位置和大小，这时图形的信息就会立刻被打印出来
+    """},
 ];
