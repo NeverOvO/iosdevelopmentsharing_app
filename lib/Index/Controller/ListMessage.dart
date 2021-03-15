@@ -4473,4 +4473,144 @@ int main(void){
 
 首先，从终端读入字符串，如果字符串的开头是C就生成圆形的实例，而如果开头是R则生成长方形的实例，并将其赋值给变量fit，然后，输入图形位置和大小，这时图形的信息就会立刻被打印出来
     """},
+  {'title' : '第十一章（2）' , 'message' : """
+  2、类簇
+
+2.1类簇的概念
+
+类簇就是定义相同的接口并提供相同功能的一组类的集合，仅公开接口的抽象类也成类簇的公共类，各个具体类的接口由公共类的接口抽象画，并隐藏在簇的内部买这些具体类不能被直接使用，一般会作为公共类的子类来实现，所以有时也称他们为私有子类
+实际编写代码是，公共类和普通类按照同样的方法使用，但是实际上被生成并存在在内存上的实例是隐藏在类簇中的某个类的实例，因为可以正确执行，所以程序几乎意识不到这点差异
+实现某个类的方法并不是一成不变的，适用于某种情况的最后的方式，也许在其他情况下就意味着高成本，类簇有一个机制，可以从多个已存在的类中挑选出最合适当前场景的类并且自动启用，具体来说就是，根据所使用的是初始化方法、便利构造器还是类名开头的临时对象生成方法，来决定如何实现。
+字符串类NSString就是提供给用户使用的类簇，在程序运行的时候，会产生和公共类NSString同样的行为，另外，基于实现上的原因或运行效率方法的考虑，有时也会有更合适的其他类的实例来表示字符串
+例如，在C语言字符串和NSString字符串对象之间进行转换，这种操作在程序中是很常见的，这里假设有一个私有字符串类，名为NSSimpleCString 它能够用最接近C语言字符串的形式来表示数据，这样一来，通过使用NSSimpleCString就可以将C语言字符串转换成NSString字符串而当该字符串又必须转换为C语言字符串是，这种处理方式也可以保证快速方便地转换，再来关注一下表示文件路径的字符串，考虑到可能需要进行抽取文件扩展名、目录名等操作，为了能便利地操作组成路径的各要素和扩展名，有时也需要一个适合的私有字符串类，若实现准备好几种这样的字符串，虽然他们只能存储一种数据并时刻需要做各种变换，但应该能提高执行效率
+
+表11-1中列举了Foundation框架提供的一些重要的类簇，除了NSString之外，Foundation框架还有很多NSArray、NSDictionary等其他基本的类，虽然在灿开稳定中，没有关于类簇的描述，但是像类簇（由初始化方法来产生的私有子类的对象）这样的类也是存在的
+
+2.2测试程序
+基于测试目的，我们编写了如下的程序，通过用多种方法产生NSString字符串，来查看一下实际运行时究竟使用了哪个类
+这仅仅是一个测试程序，实际程序中并不要求知道类簇中具体使用了哪个类，而且也不应该编写这种实现的程序
+
+代码清单11-8 查看类簇中的类
+
+#import <Foundation/Foundation.h>
+#import <stdio.h>
+
+static void printClass(NSString *obj){
+    printf("Class=%s , \tMember=%s ,\tKind=%s\n",[NSStringFromClass([obj class]) UTF8String],[obj isMemberOfClass:[NSString class]] ? "YES" : "NO",[obj isKindOfClass:[NSString class]]? "YES" : "NO");
+}
+int main(void){
+    NSString *ss =@"static string";
+    @autoreleasepool {
+        printClass(ss);
+        printClass([ss stringByAppendingString:@"(^-^)"]);
+        printClass([NSString stringWithUTF8String:"(- -)"]);
+        printClass(NSHomeDirectory());
+    }
+    return 0;
+    
+}
+函数printClass（）会打印输出如下信息：参数NSString字符串实例所属的类名，是否为NSString类的实例，是否为NSString子类的实例，在这里，函数NSStringFromClass（）的作用是返回类名，函数NSHomeDirectory（）的作用是返回执行程序的用户根目录
+
+运行结果：
+
+Mac os X 系统版本不同的情况下会产生不同的结果，即使在程序看来是同样的NSString但实际上内部可能使用了不同的类，另外，还需要注意，方法isMemberOfClass：的执行结果并不是NSString的实例
+
+2.3编程中的注意事项
+ObjectiveC中没有专门构成类簇的语法，一般情况下，公共类默认为抽象类，而具体的类则是作为i 公告类的私有子类来实现的，
+使用类簇时，不用在意和普通类的差别，但要注意以下2点：
+
+（1、查看实例所属类时
+	对类簇来说，所有实例都是私有子类的实例，因此，从类簇的测试程序中俄我们可以看出，方法isMEmberOfClass：即使是将公共类作为输入参数，也很难知道结果	
+	当实例所属类的处理策略被改变时，可以使用方法isKindOfClass：判断是否为子类实例，使用方法respondsToSelector：判断是否为特定方法，这些方法都十分有效
+（2、生成子类时
+	很多情况下，公共类作为抽象类被实现时，各个方法是在私有子类中具体实现的，因此即便生成类直接继承公共类的子类，也不能立即产生用户想要的功能
+	在类簇中添加新功能时，请参考11.3节的介绍
+
+3、生成类簇的子类
+
+类簇使多种类别实现抽象画，在公共类的外部只有类簇时可见的，虽然也可以使用类簇本身，但此时使用类簇中类别的子类时有些麻烦
+下面说明一下如何产生基于扩展或改变类簇功能的类，因此类簇目前时作为Foundation框架的基本类来实现的，所以一般情况下，没有必要生成子类
+
+3.1使用范畴
+
+虽然范畴不是用来生成子类的，但是在10.2节中提到过，添加新的范畴可以扩展公共类的功能，也可以实现像实例变量那样使用关联引用的功能
+图11-3是在NSString中添加新功能的概念图，因为公共类NSString中添加的范畴也会被类簇中隐藏的子类所继承，所以类簇中所有的类都可以使用新添加的功能
+
+
+3.2基本方法的重定义
+
+我们根据具体的数据结构和算法定义各种各样的类簇，类簇包括一小部分基本方法，其他方法都是在基本方法的基础上实现的，基本方法在子类中实现，而其他方法在公共类中实现，每个子类中不同的实现细节都隐藏在基本方法中，也就是说，即使在类簇内部，也实现了过程抽象化和信息隐藏
+因此，定义私有数据结构及对其访问的基本方法是为类簇生成新的子类的最好方式
+
+在各个类簇中，哪些包含有基本方法，附录中都有详述，除基本方法之外，对那些希望独立实现的方法也做了相关的解释说明。
+表11-2归纳类一些主要类簇的公共类的基本方法，例如NSString的基本方法是length和characterAtIndex： NSString的子类NSMutableString的基本方法是replaceCharactersInRange：withString：
+
+下面具体说明类簇的子类的实现方法
+（1、确定私有数据结构
+	确定作为 实例变量的数据结构，作为超类的类簇不能使用所有的数据结构
+（2、定义初始化方法
+	定义inti…这样的初始化方法，不能继承和使用init之外的超类的初始化方法，只要没有私有数据结构，就可以使用init，所以没有必要定义初始化方法
+（3、定义便利构造器
+	必要的话，以数据类型名作为前缀，定义生成临时对象的类方法，不能继承及使用超类的同样的方法
+（4、定义基本方法
+	定义自己的基本方法
+（5、定义其他方法
+	通过定义基本方法，公共类声明的方法可以暂且执行，但是利用生成数据结构的特征也许能够产生更加高效的方法，而且可以重写这样的方法，如果已经在子类上单独扩展了功能，那么只要定义相应的方法就可以
+
+3.3生成字符串的子类
+
+下面尝试生成一个简单的实例程序，定义一个NSString的子类BitPattern，他的取值对应整数范围0-255由表示8比特的0、1字符组成，为了获得更好的测试效果，我们只定义基本方法length和characterAtIndex：
+
+代码清单11-9 类BitPattern的结构部分
+
+BitPattern.h
+
+#import <Foundation/NSString.h>
+@interface BitPattern : NSString{
+    unsigned char value;
+}
+-(id)initWithChar:(char)val;//指定初始化方法
+-(NSUInteger)length;
+-(unichar)characterAtIndex:(NSUInteger)index;
+@end
+
+代码清单11-10 类BitPattern的实现部分
+
+BitPattern.m
+
+#import "BitPattern.h"
+
+@implementation BitPattern
+
+-(id)initWithChar:(char)val{
+    if ((self = [super init]) !=nil)
+        value = val;
+    return self;
+}
+-(NSUInteger)length{
+    return 8;
+}
+-(unichar)characterAtIndex:(NSUInteger)index{
+    return (value &(0x80 >> index))? '1':'0';
+}
+@end
+
+代码清单11-11 类BItPattern的测试程序
+
+#import <Foundation/Foundation.h>
+#import <stdio.h>
+#import "BitPattern.h"
+
+int main(int argc,char *argv[]){ //使用ARC
+    NSString *bits,*tmp;
+    @autoreleasepool {
+        bits = [[BitPattern alloc] initWithChar :argv[1][0]];
+        printf("Bit Pattern=%s\n",[bits UTF8String]);
+        tmp = [@"Bit Pattern = "stringByAppendingString: bits];
+        printf("%s\n",[tmp UTF8String]);
+    }
+    return 0;
+}
+
+    """},
 ];
