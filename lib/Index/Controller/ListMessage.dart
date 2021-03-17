@@ -4613,4 +4613,276 @@ int main(int argc,char *argv[]){ //使用ARC
 }
 
     """},
+  {'title' : '第十二章（1）' , 'message' : """
+ 1、协议的概念
+
+1.1什么是协议
+
+大多数情况下，对象的主要作用就是表示所处理的消息的类型，而表示对象的作用和行为的方式的集合就称为协议
+协议这个称号常用于表示互联网的通信协议，OBjectiveC中的协议最初就是从各个对象之间的通信协议中抽象出来的一种语言称谓，而现在作为广义的概念来使用了，Java中的接口这一概念也吸收了ObjectiveC中的协议概念
+这么我们拿显示生活中例子来说明协议的概念，我们都知道CD播放器，MD播放器，数字音频播放器，这些产品都提供了播放、停止、跳过等公告功能，数字音频播放器虽然出现比较晚，但由于他采用了同样的操作方法，所以即使是初次接触的用户也很容易上手，也就是说，CD播放器、MD播放器等的公共功能也适用于数字音频播放器
+￼
+播放、停止、跳过等公共功能就是我们所说的协议，只要与这些操作方法相对应，也就是说只要提供了公共协议，无论使用什么样的存储媒体，都可以播放或停止播放音乐，而对协议来说，每个播放器也可以独立实现各自的功能
+
+1.2对象的协议
+
+在对象模型化的软件世界里，不同的对象也可能包含相同的方法集合，但通常情况下，这些对象之间并不是继承关系
+将多个对象作为元素保存在队列中，并执行添加、删除、升序排序等操作，这就是我们所说的集合对象、集合对象只要有必要的功能即可，至于其内部是如何实现的，这对使用者来说则是非透明的
+在图12-2中，数组、线性表、二分查找数就是这样的集合对象，这些类之间并没继承关系中的哪个类，都可以使用该协议进行编程
+￼
+在继承中，超类的实现直接影响着子类，具体来说，定义的实例变量和方法都会被子类自动继承下来，但这样有时候也有问题。例如，在之前描述的3个类的例子中，由于实现方法是完全不同的，因此无论是继承实例变量还是方法都没有意义
+ObjectiveC中的协议仅仅是声明方法的集合体，实例方法则由各个类自行完成，因此，使用协议的各个类之间是否有继承关系都无关紧要，重要的是如何实现这些方法
+使用协议的情况下，如果类实现了该协议声明的所有方法，我们就说类遵循该协议，而他的子类实例因为继承关系也拥有了这些协议方法，当类适用于各个协议时，他的实例也适用于这个协议
+通过目前为止的说明我们已经了解到，当声明使用类时，因为子类实例也是父类的对象，所以子类实例也能执行父类的操作，协议也同样，使用协议名可以声明一种类型，该类型描述了适用于该协议的对象操作，此时，协议使用的类实例也就可以通过该类对象来执行操作了
+在上一章中，我们说明来了抽象类的方法，而协议就可以被理解为只有声明而没有实现方法和实例变量等的抽象类
+下面我们来看一些具体的例子
+在Foundation框架中，像信号量这样发挥线程间互斥功能的类有NSLock、NSConditionLock、NSRecursiveLock这些统称为锁对象，互相之间无继承关系，但他们都适用于协议NSLocking，该协议仅由lock和unlock方法构成，类似于信号量的P操作和V操作
+在编程时，为了使访问公共变量的程序能够使用任意类型的锁，相对于使用特定的类型名，使用NSLocking协议适用的类集合对象来作为类型声明效果会更好
+
+￼
+
+2、ObjectiveC中协议的声明
+
+2.1协议的声明
+
+协议采用如下方式声明
+语法：协议的声明
+@protocol 协议名
+声明方法；
+…
+@end
+
+协议名使用和C语言相同的语法规范，其命名习惯通常与类名相同，即首字母大写其他字母小写，此外，协议名也可以与已有的类同名
+方法的声明也可以使用属性声明
+例如，上一节所列举的NSLocking协议就使用了如下定义
+
+@protocol NSLocking
+-(void)lock;
+-(void)unlock;
+@end
+
+协议通常被作为头文件书序，并在类的声明之前导入
+
+2.2协议的采用
+
+当声明的类中实现了某个协议的方法时，接口部分使用如下记述，和普通接口的书写不同的是，超类名字后面要用<>将协议名括起来，这点需要注意
+语法：协议的采用
+
+@interface 类名：超类名<协议名>
+{
+	声明接口变量；
+	…
+}
+声明方法；
+…
+@end
+
+这样声明时，协议中的方法就被作为了类声明的一部分，因此，在类的接口声明汇总，就无须在声明这些方法类，与接口中声明的方法一样，协议中的方法在实现文件中也必须要实现，但在超类中已实现的方法就不用再重新实现了
+像这样，类的接口声明指定了某个协议的情况，我们称为类采用了该协议，采用协议的类及其子类也就成为了该协议适用的类，而子类也可以同时使用别的协议
+例如，采用协议NSLocking的类NSLock的接口如下所示（省略了一部分方法）
+@interface NSLock : NSObject <NSLocking>{
+@private
+	void *_priv;
+}
+-(BOOL)tryLock;
+-(BOOL)lockBeforeDate:(NSDate *)limit;
+@end
+
+一个类中可以同时采用多个协议，这时在接口部分的<>括号内，将多个协议名用逗号分隔即可，例如，类A采用了协议S和协议T，按照如下方式书写
+
+@interface A：NSObject <S,T>
+…
+@end
+
+现在，即使多个协议中重复包含同一个方法的声明也没有任何问题，例如，协议S和协议T中都包含了方法copy：，只要在实现文件中实现copy：方法，也就是实现了协议S中的copy：方法和协议T中的copy：方法
+
+但是，选择器相同而函数参数的返回值的类型不一样，即签名不同的方法在协议中重复声明时就会产生问题，一个类内不能声明包含同一个选择器的另一个方法，也不能定义多个这样的协议
+而当协议中的方法在某个范畴中实现时，就可以在该范畴中声明采用协议，指定方法如下
+语法：范畴中协议的采用
+
+@interface 类名（范畴名）<协议名>
+声明方法;
+…
+@end
+
+通过此方法还可以在已知类中添加协议的方法实现
+
+2.3协议的继承
+
+在某个协议中，可以追加另一组方法来产生新的协议，这称为协议的继承，声明方法如下所示
+语法：协议的继承
+
+@protocol 协议名1<协议名2>
+声明方法；
+…
+@end
+
+这样声明的协议包含了继承的协议中的一组方法，以及新增的一组方法，而且协议还可以有多个继承源，增加多个继承源时在<>内将多个协议名用逗号分隔即可
+
+2.4指定协议的类型声明
+
+我们可以声明某个对象适用于某个协议，例如，当我们想要声明变量obj适用于协议S时，就可以采用如下方式定义
+
+id<S>obj;
+
+对象也可以时临时参数，下面的例子就表明临时参数elem适用于协议mag
+-(void)addElement:(id <mag>)elem;
+
+在声明指定协议的类型时，编译器会对类型进行静态检查，但需要注意的是，在运行时，并不会对类型进行动态检查
+类是否适用于协议，与每个方法是否得到了实现无关，而是根据在接口文件中是否声明了采用协议来判断，也就是说，在类的实现部分，即便实现了某个协议的所有方法，只要在接口文件中没有声明采用协议，就不能认为这个类时协议适用的
+不仅是id类型，具体的类名和范畴的组合也可以被当作类型来使用，如下例所示：
+
+-(void)setAlternativeView:(NSView <Clickable> *)aView;
+
+在此例中，参数aView不仅是类NSView的实例，还适用范畴或继承，同时还是协议Clickable适用的对象，此例中静态说明类这些特性
+如果一个对象适用了协议，那么在指定该对象的类时，类对象只要能适用于指定的协议就行，而不用管他是什么类的对象，这样就可以编写出不依赖于具体的类的实现的、高灵活性的代码
+像这样，代码中只关注协议和抽象类，而没有具体类名的对象称为匿名对象
+系统框架提供的协议中，很多都继承了协议NSObjcet，协议NSObject是基类NSObject的部分接口，规定了对象的基本行为，如上所述，像id<协议>这样的类型定义虽然很常见，但如果协议继承了NSObject就能够向编译器告知对象的基本功能
+
+2.5协议的前置声明
+
+如果只在头文件的类型声明中使用协议名，可以指定前向引用，这与4.3节中说明的类的前置声明是一样的，但是在定义文件中吗，为了让编译器能够检查类型，就必须引用协议的定义，例如，声明Clickable这个名字为协议，可以采用如下方式
+@protocol Clickable;
+
+2.6协议适用性检查
+
+在运行时可以动态地检查对象是否适用于某个协议，因此在程序中就有必要把协议当成数据来看待
+使用编译器命令符@protocol（）后，就可以获得表示指定协议数据的指针 @protocol（）参数中包含类型（Protocol *）可以代入变量
+
++(BOOL)conformsToProtocol:(Protocol *)aProtocol
+	aProtocol参数指定的协议和类适用时，返回YES
+-(BOOL)conformsToProtocol:(Protocol *)aProtocol
+	接收器和参数aProtocol指定的协议适用时，返回YES
+例如，要检查对象obj是否适用于NSLocking，可以用如下方式：
+if([obj conformsToProtocol:@protocol(NSLocking)])…
+
+
+2.7必选功能和可选功能
+
+到目前为止，采用协议的类都必须实现协议中列举的所有方法，而ObjectiveC 2.0中规定了一项新的功能：协议列举的方法中，分为必须实现的方法和可选择实现的方法，也就是说可以指定不用实现的方法
+协议中声明的方法群虽然和协议关系紧密，但也存在一些可有可无的方法，这种情况下，我们可以将这些方法指定为可选，这样一来，根据协议的记述，实现方法时就能统一接口
+在协议声明中，编译器命令符@protocol和@required可用来设定其后出现的方法时可选的还是必选的，而@optional和@required命令符在声明中以什么样的顺序出现以及出现多少次都可以，如果声明中没有特殊指定，那么就默认为@required，表示方法是必选的
+下面我们以闹钟为例进行说明，在闹钟协议中，当前时间的设定、脑涨的ON/OFF设定以及起床时刻的设定都是必选的；而贪睡功能（停下来几分钟后再响铃的功能）的ON/OFF设定、闹钟铃声临时停止的设定则是可选的、下面的实例代码写的有点复杂，通常情况下是应该更简明一些的
+
+@protocol Alarm
+-(void)setCurrentTime:(NSDate *)date;
+@protocol (assign)BOOL alarm;
+
+@optional
+@property (assign)BOOL snooze;
+-(void)pauseAlarm:(id)sender;
+
+@required
+-(void)setTimeAtHour:(int)h minute:(int)m;
+@end
+
+由于采用协议的类可以不实现可选方法，因此有时就需要动态地检查方法是否可用，在该例中，闹钟对象不一定具有贪睡功能，而如果有的话，由于方法的接口是明确的，因此检查该方法是否可用也很容易
+
+2.8使用协议的程序示例
+
+这里，我们首先来看一个协议RealNumber，他的功能是取得实数值
+
+代码清单12-1 协议RealNumber
+
+RealNumber.h
+
+@protocol RealNumber
+-(double)realValue;
+@end
+
+这时一个很简单的例子，下面我们在类NSMutableArray中添加范畴，保存协议的对象并添加排序操作
+
+代码清单12-2 category RealArray的接口部分
+
+RealArray.h
+
+#import <Foundation/NSArray.h>
+#import "RealNumber.h"
+
+@interface NSMutableArray (RealArray)
+-(void)addRealNumber:(id <RealNumber>)number;
+-(void)sort;
+@end
+ 代码清单12-3 category RealArray的实现部分
+
+RealArray.m
+
+#import "RealArray.h"
+@implementation NSMutableArray (RealArray)
+-(void)addRealNumber:(id <RealNumber>)number{
+    [self addObject:number];
+}
+
+static NSInteger compareReal (id <RealNumber> a, id <RealNumber> b,void *_){
+    double v=[a realValue]-[b realValue];
+    if(v>0.0)
+        return NSOrderedDescending;
+    if(v<0.0)
+        return NSOrderedAscending;
+    return NSOrderedSame;
+}
+-(void)sort{
+    [self sortUsingFunction:compareReal context:0];
+}
+@end
+
+这里使用了9.4节中提到的sortUsingFunction：context：方法，比较各个元素的功能由局部函数compareReal（）完成，函数返回值为NSComparisonResult枚举类型
+接下来定义使用协议的类，RealNumber首先使用5.3节中编写的分数计数器来尝试扩展这个分数类的功能，中间，省略的部分和代码相同
+
+Fraction.h 与 Fraction.m 略
+
+字符串NSString也适用于协议RealNumber这里定义协议适用的范畴并扩展其功能
+
+代码清单12-6 类NSString的范畴的接口部分
+
+NSStringReal.h
+
+#import <Foundation/NSString.h>
+#import "RealNumber.h"
+
+@interface NSString (Real)<RealNumber>
+@end
+
+代码清单12-7 类NSString的范畴的实现部分
+
+NSString.m
+
+#import "NSStringReal.h"
+
+@implementation NSString (Real)
+
+-(double)realValue{
+    return [self doubleValue];
+}
+
+@end
+
+同样，如果添加范畴。类NSNumber等也能够适用于协议RealNumber
+最后，在main（）函数中确认上述操作
+
+代码清单12-8 用来测试协议RealNumber的主函数
+
+#import <Foundation/Foundation.h>
+#import <stdio.h>
+#import "RealNumber.h"
+#import "Fraction.h"
+#import "NSStringReal.h"
+#import "RealArray.h"
+
+int main(void){
+    @autoreleasepool {
+        id array = [NSMutableArray array];
+        [array addRealNumber:@"1.3"];
+        [array addRealNumber:@"0.35"];
+        [array addRealNumber:@"0.2"];
+        [array addRealNumber:[Fraction fractionWithNumerator:1 denominatior:3]];
+        [array addRealNumber:[Fraction fractionWithNumerator:3 denominatior:8]];
+        [array addRealNumber:[Fraction fractionWithNumerator:3 denominatior:2]];
+        [array sort];
+        printf("%s\n",[[array description] UTF8String]);
+    }
+    return 0;
+}
+
+    """},
 ];
