@@ -4885,4 +4885,80 @@ int main(void){
 }
 
     """},
+  {'title' : '第十二章（2）' , 'message' : """
+ 3、非正式协议
+
+3.1什么是非正式协议
+
+我们可以将一组方法声明为NSObject的范畴，这称为非正式协议，或者称为简化协议，为了和非正式协议相区别，有时也将上一章节之前讲述的协议称为正式协议，虽然都称为协议，但是在功能上缺失不同的
+非正式协议知识作为if 按丑进行声明，而并没有实现，实际上，范畴中声明的方法即使没有实现，也可以编译或执行，但是在发送消息时会出现运行时错误
+在类中，如果要使用一组非正式协议声明的方法，就需要在接口文件中重新声明这组方法（并不是必须）并在实现文件中实现，但并不要求实现范畴中的所有方法
+由于非正式协议知识基类的范畴，因此，和使用正式协议时一样，既不能在编译时做类型检查，也不能在运行时检查协议是否适用，如果要检查非正式协议中的方法是否已实现，只能对每个方法调用respondsToSelctor：
+下面我们来总结一下非正式协议的相关概念：
+
+- [ ] 非正式协议被声明为NSObject类的范畴
+- [ ] 非正式协议中声明的方法不一定要实现
+- [ ] 编译时，不能检查类对非正式协议的适用性
+- [ ] 运行时，不能检查类对非正式协议的适用性，只能确认是否实现了每个方法
+
+3.2非正式协议的用途
+
+非正式协议有这么多问题，到底要如何使用它？在Cocoa中，从系统方调用用户编程方的对象来互发消息时，经常会使用非正式协议
+例如：Application框架的类NSColorPanel中定义了非正式协议（AppKit/NSColorPanel.h）
+
+@interface NSObject (NSColorPanelResponderMethod)
+-(void)changeColor:(id)sender;
+@end
+
+使用调色板改变颜色时，界面上选择的对象，如果实现了该方法，那么无论继承关系如何，都可以在接收到消息后执行改变颜色的处理，而如果没有实现该方法，则不会接收到这个消息
+此外，ios的UIKit框架中定义了非正式协议UIAccessibility（UIKit/UIAccessibility.h）
+
+@interface NSObject (UIAccessibility) //一部省略
+@property(nonatomic) BOOL isAccessibilityElement;
+@property(nonatomic,copy) NSString *accessibilityLabel;
+@property(nonatomic,copy) NSString *accessibilityHint;
+@property(nonatomic,copy) NSString *accessibilityValue;
+@property(nonatomic) UIAccessibilityTraits accessibilityTraits;
+@property(nonatomic) CGRect accessibilityFrame;
+@property(nonatomic,retain) NSString *accessibilityLanguage;
+@end
+
+可访问功能是指视觉，听觉有缺陷的用户也可以方便地使用设备的功能，例如功能VoiceOver就可以读出所触摸的按键等的种类，界面上设置的UIKit组件已经采用了上述非正式协议，而其他节目元素，只要实现了上述特性，也都能使用可访问功能
+由于非正式协议的方法是作为基类的方法定义的，因此，即使在程序中写明向任何一个实例发送消息，在编程时也不会出现警告
+例如box对象，即使我们不知道他是否实现了上述非正式协议NSColorPanelResponderMethod的方法，也可以按照如下方法使用方法respondsToSelector来编程，值的注意的是，即使声明了box的类型，编译时if代码中也不会出现如下警告
+
+if([box respondsToSelector:@selector(changeColor:)])
+	[box changeColor:self];
+
+非正式协议与实现范畴中的方法时的情况有所不同，他在NSObject中并没有添加什么实质内容，源文件中导入的范畴声明，实际上是方法的原型声明
+像上例这样，在并不需要整个方法群的情况下，一般都会使用非正式协议来声明，现在ObjecitveC2.0中也就可以使用带可选标记的协议，而各部分代码中使用的协议的编程风格也随处可见
+
+专栏：使用宏（macro）来区分系统版本的差异
+
+如果留心观察框架中提供的类头文件，就会发现很多下面这样的预处理行
+
+#id MAC_OS_X_VERSION_MAX_ALLOWED >=MAC_OS_X_VERSION_10_2
+
+宏MAC_OS_X_VERSION_MAX_ALLOWED表示当前使用的开发环境的版本，同样，还有宏MAC_OS_X_VERSION_MIN_REQUIRED他用来说明使用该SDK开发的应用在运行时对系统版本的最低要求。
+此外，还有像MAC_OS_X_VERSION_10_2 这样表示系统版本的宏，通过使用这些宏，可以根据心就等不同版本来编写合适的代码，但是，在旧版本的系统中不能定义新的宏，例如，在Mac os x10.2环境中就没有定义宏MAC_OS_X_VERSION_10_4于是，为了使旧版本也可以进行编译，就必须按照如下方式，使用Mac os x10.1对应1010，10.2对应1020，10.3对应1030
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED >=1040
+
+有时，在属性方法等声明的末尾还会添加如下的宏
+
+（1、AVALIABLE_MAC_OS_X_VERSION_10_4_AND_LATER
+（2、DEPRECATED_IN_MAC_OS_X_VERSION_10_4_AND_LATER
+（3、NS_AVAILABLE(10_7,5_0)
+（4、NS_DEPRECATED(10_0,10_6,2_0,4_0)
+（5、NS_CLASS_AVAILABLE(10_7,5_0)
+
+（1）是10.4及其后版本使用的新功能。
+（2）与（1）相反，表示不推荐使用旧功能
+（3）与（1）相同，表示在Mac OS X10.7之后的版本或者iOS 5.0之后的版本中可用
+（4）更复杂，表示在Mac OS X10.0以及iOS2.0之后的版本中可用使用，而分别在10.6、4.0中不推荐使用
+这些与上述宏的MAC_OS_X_VERSION_MAX_ALLOWED及宏MAC_OS_X_MIN_REQUIRED的定义相对应，可以用来替换指定函数属性的注释，而如果使用了非法函数或非推荐的方法，在源代码的使用位置处就会产生编译错误或警告
+（5）表示类是否有效，对应添加给该宏的类，程序内采用如下方式判断其是否有效
+if([NewClass class]){/*只有NewClass可以使用才能执行*/}
+
+    """},
 ];
