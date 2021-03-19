@@ -4961,4 +4961,100 @@ if([box respondsToSelector:@selector(changeColor:)])
 if([NewClass class]){/*只有NewClass可以使用才能执行*/}
 
     """},
+  {'title' : '第十三章（1）' , 'message' : """
+1、对象的复制
+
+1.1浅复制和深复制
+用与一个实例对象相同的内容，生成一个新对象，这个过程一般称为复制，其中，只复制对象的指针称为浅复制，而复制具有新的内存空间的对象则称为深复制，浅复制和深复制有时也称为浅拷贝和深拷贝
+
+从图13-1可以看出来，现在变量A指向了一个对象，而这个对象的实例变量又指向了另一个对象，把变量A复制到变量B时，首先，我们可以考虑只复制对象的指针这种方法，其次，也可以将变量A指向的对象原样复制一份，并通过指针来共享这个对象的复制体中的实例变量，最后，复制对象中的实例变量，还可以递归地进行对象复制C
+￼
+（a）是将对象代入到变量中，（b）是典型的浅复制，（c）是深复制
+用指针功效某一对象的时候，同时也会共享哪个对象的操作结果，生成副本时，对源文件和副本的操作都是独立的，这一点通过（a）和（c）这两种情况下对X及X‘这些对象进行变更操作就会很清楚，如果想共享变更操作的结果，就应该选择（a）代入或（b）浅复制，而如果希望各自独立管理的话，那就用（c）深复制
+像这样，共享指针的方法和对象的复制方法差异确实很大，因此，在实际编程中，就需要我们根据目标需求来区分使用，例如，像只复制一部分实例变量，其他则通过指针来访问这样综合使用浅复制和深复制的方式有时候也是比较合适的方法
+
+1.2区域
+
+Cocoa中一直把动态分配的内存管理称为区域，新运行时系统中不使用区域，而之后提到的copyWithZone：方法中的参数也知识格式类似，这里，我们先简单地介绍一下区域的概念
+动态分配内存的堆区域使用了地址空间中很大一片区域，一方面，从空间的局部性原理和虚拟内存管理的角度来看，倾向于同时使用的有关联的数据群，如果能被有效配置在内存中距离较近的位置，就可以实现高效的内存访问
+于是，我们可以在堆内设定多个区块，使关联的数据和对象可从特定的内存区域中分配并保存，这个区域就叫作区域
+因为区域是为此目的服务的，所以他在运行效率上并没有多大贡献，现在较新的运行时环境中都没有用到它，但实例的生成和复制的机制中还保留着区域功能，
+通常，生成实例对象要使用类方法alloc，而NSObject中也有一个类方法可以指定区域来生成实例
++(id)allocWithZone:(NSZone *)zone;
+	NSZone结构体是专门用于表达区域的数据结构，现代运行时中，因为参数zone会被忽略，所以一般设置为NULL，但方法的功能和alloc一样
+
+1.3复制方法的定义
+
+NSObject中有copy方法，它能够通过复制接收器来生成新实例，但是，实际的复制操作并不是copy来完成的，而是由实例方法copyWithZone：来完成的，发送copy消息给实例对象后，指定参数为NULL，这样就可以调用自身的copyWithZone：该方法就是这样生成新的实例
+鉴于这样的复制方法，为了使实例能够复制，光实现copy方法还不行，还需要定义方法copyWithZOne：方法copyWithZone：返回复制生成的新对象，如果执行失败则返回nil值，copy的返回值也是同样的
+由于方法copyWithZone：是在协议NSCopying中声明的，因此就要在类中实现采用该协议的方法，如果该方法适用于协议NSCopying，那么方法在copy的声明属性指定为可选等情况下，编译器就会被告知可以进行复制
+
+@protocol NSCopying
+-(id)copyWithZone:(NSZone *)zone;
+@end
+
+NSCopying协议在头文件Foundation/NSObject.h中定义。但是NSObject自己并不采用该协议，方法copy只使用NSObject进行简单的定义
+方法copyWithZone：的定义方法可以总结如下：
+（1、超类如果没有实现方法copyWithZone：可使用alloc和init来生成新实例，并将该实例变量谨慎地复制并代入
+（2、超类如果实现了方法copyWithZone：可直接调用该方法来生成实例，再将子类中添加的实例变量根据需要复制并代入
+（3、实例变量中的共享对象没有必要复制，采用手动引用计数管理时需要retain
+（4、采用引用计数管理时，方法copyWithZone：及copy的调用者就是对象的所有者，因此该返回值不适用于autoreleaase
+（5、对常数对象的类而言，定义方法copyWIthZone：不一定要生成新对象，采用手动引用计数管理方式的情况下，通过self适用retain来返回结果，使用ARC和垃圾回收器时，只返回self
+此外还有另一个函数NSCopyObject（）他会将实例对象当作二进制序列完整地复制下来并生成另一个对象，但该函数容易出错，比较危险，所以并不推荐使用，特别在使用ARC的情况下绝对要禁止使用该函数
+
+1.4复制方法的例子
+接下来介绍几个复制方法的例子
+假设未来实现图像的管理而定义了ImageCell类，该名字中包含了字符串image，节目中能显示的图像被保存在NSImage实例中，在实例变量中也有该名字，NSImage是Application框架中的类，而且，表示该图像在窗口中的坐标的实例变量的类型为NSPoint，NSPoint内的成员x和y，分别表示坐标位置
+@interface ImageCell : NSObject <NSCopying>{
+	NSMutableString *name;
+	NSImage *image;
+	NSPoint position;
+}
+…
+@end
+
+该类所表示的图像，就像扑克的图案一样，其大小是固定的，由于即使被复制，图片也会被共享，所以在复制ImageCell类实例时，就没有必要再复制NSImage的实例了，只要共享指针就可以了，大家查看一下附录就会发现NSMutableString紧挨着协议NSCopying这种情况下，可按如下方式定义copyWithZone：方法
+-(id)copyWithZone:(NSZone *)zone{
+	ImageCell *tmpcopy =[[[self class] allocWithZone:zone] init];
+	//重要 使用[self class]而非类名
+	if(tmpcopy){
+		tmpcopy->name=[name copyWithZone:zone];
+		tmpcopy->image=[image retian];//使用手动引用计数管了
+		tmpcopy->position=position;
+	}
+	return tmpcopy;
+}
+
+这里即使不使用copyWithZone：的参数zone而赋值为NULL也没有关系，此外，还可以使用alloc和copy来代替allocWithZone：和copyWithZone
+使用手动引用计数管理时，image发送的retain消息必须被保存，虽然这里使用了->来直接赋值，但对属性赋值来说，如果有其他合适的初始化方法或访问器，也是应该考虑采用的
+接下来，让我们尝试一下继承ImageCell来定义新类，就像象棋中车这个棋子一样，这里在类DirectedImageCell的定义中增加了图像的方法属性，接口部分如下所示，enum direction是列举方向的枚举类型，由于超类ImageCell适用于协议NSCopying，因此DIrectedimageCell中可以不指定协议
+
+@interface DirectedImageCell : ImageCell{
+	enum directions direction;
+}
+…
+@end
+
+在DirectedImageCell中定义新的方法copyWithZone：
+
+-(id)copyWithZone:(NSZOne *)zone{
+	DirectedImageCell *tmpcopy =[super copyWithZone:zone];
+	if(tmpcopy)
+		tmpcopy->direction =direction;
+	return tmpcopy;
+}
+
+这里调用了超类的copyWithZone：方法，但结果返回的实例的类并不是ImageCell类，而是DirectedImageCell类，这点需要注意，定义超类方法copyWithZone：时不直接使用类名，而是将方法allocWithZone：适用于[self class]	当从子类DirectedImageCell中调用这个方法时，因为self为DirectedImageCell的实例，所以使用[self class]返回的类就是DirectedImageCell类
+那么，在定义类ImageCell的方法copyWithZone：时，将变量tmpcopy声明为类型ImageCell *会不会有问题呢？即使实际的对象时DirectedImageCell的实例，因为实现中包含的ImageCell初始化类，所以也没有问题，此外，数据类型如果表示为id，->运算符不可以使用
+考虑到这个原因，不仅限于copyWithZone：方法，只要用到继承，我们都不建议写方法内类自身固定的类名
+
+1.5实现可变复制
+
+通过阅读第9章我们已经了解到，从常熟对象生成可变对象可以使用MutableCopy方法
+-(id)mutableCopy
+	然而，该方法使用NSObject简单生成，实际上真正生成实例方法的事mutableCopyWithZone：
+-(id)mutableCopyWithZone:(NSZOne *)zone
+	该方法在只包含它的协议NSMutableCopying中声明，协议本身定义在头文件Foundation/NSObject.h中，NSObject本身不采用该协议，在使用方法mutableCopy时，如果将zone参数指定为NULL，则实际调用mutableCopyWithZone：方法这种结构与方法copy和copyWithZone：如出一辙
+如果自己需要定义一个包含了常熟对象和可变对象的类，那么使用mutableCopyWithZone：方法会更加方便一些
+    """},
 ];
