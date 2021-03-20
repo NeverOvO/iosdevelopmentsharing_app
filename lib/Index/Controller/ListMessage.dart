@@ -5057,4 +5057,201 @@ NSCopying协议在头文件Foundation/NSObject.h中定义。但是NSObject自己
 	该方法在只包含它的协议NSMutableCopying中声明，协议本身定义在头文件Foundation/NSObject.h中，NSObject本身不采用该协议，在使用方法mutableCopy时，如果将zone参数指定为NULL，则实际调用mutableCopyWithZone：方法这种结构与方法copy和copyWithZone：如出一辙
 如果自己需要定义一个包含了常熟对象和可变对象的类，那么使用mutableCopyWithZone：方法会更加方便一些
     """},
+  {'title' : '第十三章（2）' , 'message' : """
+2、归档
+
+2.1对象的归档
+
+有时我们会有这样的需求，即将程序中使用的多个对象及其属性值，以及他们的互相关系保存到文件中，或者发送给另外的进程，为了实现此功能，Foundation框架中，可以吧互相关联的多个对象归档为二进制文件，而且还能将对象的关系从二进制文件中还原出来，像这样，将对象打包成二进制文件就称为归档
+例如，将Xcode开发环境中构造的GUI对象的关系保存到名为nib的文件中，该文件中就包括了各对象的属性值及对象之间的关系，这样就可以在开发环境中再次打开该文件进行编辑，或者在运行时使其作为实际的对象运行
+此外，在制作包含复制和粘贴、拖拽和释放等功能的应用程序时，为了保存操作对象的信息，有时也会利用归档，之后讨论的XML和属性吧，其中的一部分也会常使用包含归档数据的方法
+但是，并不是说归档适用于所有的数据。将对象归档保存时，保存方法、还原方法都必须要实现，由于归档与对象具体的结构紧密，因此，当类定义或对象之间的关系改变的时候，归档的方法也必须随之改变，很多情况下，使用XML或属性表等高通用性的格式来保存数据，从程序的效率及稳定性上来说都会更好一点
+本章将简要说明Foundation框架的归档功能
+
+2.2Foundation框架的归档功能
+
+将对象存储转换为二进制序列的过程称为归档、打包或编码，逆变换则称为解档，解码或对象还原
+Foundation框架中的归档和系统框架是互相独立的，也就是说mPowerPC和Intel都可以利用，在对象包含的实例变量值中，整数及实数这样的基本数据类型，以及指向其他对象的指针等都可以归档，普通指针虽然不能归档，但根据指向的数据类型有时则是可以归档的
+一个对象指向其他对象，这种关系称为对象图，沿着对象的指向关系往下走，有时就会再次回到原来的对象，这样的情况称为闭环，Foundation框架可以将对象图归档成书库，其中，作为出发点的对象就可以称为根对象，对象图中即使包含闭环也没有关系
+可以使用NSKeyedArchive和NSKeyedUnarchiver完成对象的归档和解档操作，而且他们都是抽象类NSCoder的子类
+所有可以归档的对象都必须要适用于协议NSCoding，协议NSCoding在Foundation/NSObject.h中定义，NSObject自身并不采用该协议，NSString、NSDictionary等Foundation框架的主要类都适用协议NSCoding
+协议NSCoding按照如下方式声明
+@protocol NSCoding
+
+-(void)encodeWithCoder:(NSCoder *)aCoder;
+-(void)initWithCoder:(NSCoder *)aDecoder;
+
+@end
+￼
+
+2.3归档方法的定义
+
+协议NSCoding中，函数encodeWithCoder：定义了归档自身的方法，下面我们就来看下这个方法的大概过程，参数中会传入NSCoder（具体为NSKeyedArchiver）的实例，该实例称为归档器，NSKeyedArchiver的实例在Foundation/NSKeyedArchiver.h中声明
+
+-(void)encodeWithCoder:(NSCoder *)coder{
+	[super encodeWithCoder:coder];//超类需要适用协议NSCoding
+	[coder encodeObject:对象 forKey : 关键词字串];//或者使用encodeConditionObject：forKey
+	…
+	[coder encodeDouble:实数变量 forKey:关键词字串];//有适合多种类型的方法
+	…
+}
+
+首先，如果超类适用于协议NSCoding，那么super将调用encodeWithCoder堆超类的实例变量进行归档，如果超类像NSObejct一样不适用于协议NSCoding，则不能调用
+接下来，类自身会对包含的实例变量归档，在类没有自己的实例变量且超类中定义了方法encodWithConder：的情况下，该方法就不需要再定义了
+通过使用NSString字符串作为键值，可以指定归档解档的内容，当某个类实例归档时，他的实例变量必须指定成不同的键值，在单个对象内部，如果超类使用类一个键值，那么子类中就不能使用该键值，键值只需要在同一个类内区分出来即可，不同的类可使用相同的键值
+对象的归档使用方法encodeObject：forKey：因为归档器要对第一个参数的对象调用方法encodeWithCoder：进行归档，所以时递归调用，当对象图有闭环时，同一个对象会重复要求归档，而实际上已归档的对象时不用重复归档的
+C的数据类型如整数实数等，都分别有相应的归档方法，数组、结构体等有时需要转换为二进制
+归档某个对象时并没有必要吧对象指向的所有对象都归档，但图13-3的情况需要注意
+￼
+图中，将对象B作为根对象进行归档操作时，去掉了实例变量X指向的对象A，即不在归档中包含对象A，但是，如（b）所示，对象B出发经由别的路径指向A，结果对象A也包含在归档中的情况下，从变量x就找不到对象A了，这样在归档还原时就可能出现问题，为解决这个问题，可以在别处使用encodeConditionalObject：forKey：方法，该方法可以确保在不归档的情况下不进行编码
+
+2.4解档方法的定义
+
+未来从归档中还原对象，需要在各类中定义初始化方法，即协议NSCoding的方法initWithCoder：下面将详细解释一下，如何定义该方法，方法参数被传入NSCoder（具体为NSKeyUnarchiver）实例变量，这个对象也称为解档器，NSKeyedUnarchiver的接口在Foundation/NSArchiver.h中定义
+
+-(id)initWithCoder:(NSCoder *)coder{
+	self =[super initWithCoder:coder];
+	//超类不适用于协议NSCoding时
+	//建议使用[super init]
+	变量 = [[coder decodeObjectForKey : 键值]	retain];
+	…
+	变量 = [coder decodeDoubleForKey : 键值];
+	…
+	return self;
+}
+
+只要在编码和解码中指定同样的键值，解码就可以按照任意顺序，即使有不能还原的变量也没有关系
+下面我们就将编码和解码方法一并列出
+
+-(void)encodeObject:(id)objv
+		       forKey:(NSString *)key
+	将字符串作为键值来对参数对象编码
+-(void)encodeConditionalObject:(id)objv
+					  forKey:(NSString *)key
+	在对象图中需要参数objv时将字符串作为键值编码
+-(id)decodeObjectForKey:(NSString *)key
+	使用指定键值来还原编码对象，需要返回值对象时可以使用retain来保存（仅限于手动引用计数管理方式）
+
+编码解码C数据类型的方法有很多，下面举一个整数编解码方法的例子
+-(void)encodeInt:(int)intv
+		 forKey:(NSString *)key
+	将字符串作为键值对整数参数归档
+-(int)decodeIntForKey:(NSString *)key
+	将键值为参数字符串的整数解码
+
+2.5归档和解档的初始化方法
+
+NSKeyArchiver的实例，即归档器，可以将对象的编码结果写进数据对象中，NSKeyArchiver的初始化方法如下所示
+-(id)initForWritingWithMutableData:(NSMutableData *)data
+	将预先生成的NSMutableFata实例作为参数，初始化NSKeyedArchiver实例，参数的数据对象被保存起来，这个数据对象最终生成归档
+
+生成归档器后，接下来就可以使用前述的encode方法对对象或数据进行归档，编码根对象后，对象图全体就会被递归地进行归档
+所有归档完成后，最后必须调用finishEncoding方法进行后处理
+-(void)finishEncoding
+
+处理完成后，由于归档器初始化时传入的数据对象已经进行了归档，因此就可以将其保存到文件中，或者向其他进程发送消息
+解档器NSKeyedUnarchiver的初始化方法如下：
+-(id)initForReadingWithData:(NSData *)data
+	为了将参数的数据对象从归档中还原，需要初始化接收器，参数data被保存在接收器中
+
+还原归档的对象图和还原一个对象时同样的，都是使用方法decodeObjectForKey：
+上面我们说明了归档和解档的实例生成方法，而其实还有一种更简单的方法也可以将归档结果写入到文件中，并进行读取和还原
+
++(BOOL)archiveRootObject:(id)rootObject
+				   toFile:(NSString *)path
+	NSKeyedArchiver类中的方法，通过指定根对象将归档结果写入指定路径的文件中，函数处理成功时返回YES
++(id)unarchiveObjectWithFile:(NSString *)path
+	NSKeyUnarchiver类中的方法，从指定路径文件中读入归档数据进行解档，返回根对象，方法处理失败时返回nil
+
+3、属性表
+
+3.1属性表概况
+
+属性表是Cocoa环境中用来表示或保存各种信息的标准数据类型，他可以将数组或词典等对象的结构表现为字符串或二进制形式来保存在文件中，或者从中读取出对象的信息
+上一节提到的归档，其主要目的是在程序内部保存和还原对象，因此并不适合用来保存与具体的类关联较弱的信息，在保存及共享和程序内部实现关系较弱的抽象数据时，建议使用属性表
+属性表有ASCII码，XML、二进制三种格式。在ASCII码格式的属性表中，字符串、数据、数组、字典（NSString、NSData、NSArray、NSDictionary）四个类的组合结构表现为文本格式，而在XML格式的属性表中，除字符串、数据、数组、字典之外，还可以表示包含数值和表示布尔值的NSNumber以及表示日期的NSDate的结构，而二进制格式则是将这样的结构保存成二进制文件、而不是文本
+字符串或数值等基本数据使用NSString和NSNumber来表示，表示二进制数据时使用NSData。NSArray和NSDictionary被用来生成对象结构，NSArray和NSDictionary也可以嵌套使用，此外，这些类也可以时表示各种可变对象的子类，在NSDictionary的接口中保存整个属性表时，该字典对象就称为根词典，字典的键值必须为字符串
+将属性表保存成文件时，习惯使用文件扩展名“.plit”	可以使用Xcode来编辑这样的扩展名文件
+使用属性表来保存各个应用的环境变量值是用户默认的设置
+
+3.2ASCII码格式属性表
+ASCII码格式的属性表是从OPENSTEP中继承的，它在苹果的开发文档中被记为“Old-Style ASCII Property Lists”有时也称为文本格式属性表，他的存在主要是未来兼容性，虽然可以从文件中读入，但却不能写出，其缺点是只能使用ASCII码字符，而不能使用NSNumber或NSData，因此在实际程序中一般不使用
+但是，作为一种字符串格式，这种属性表可以很容易地取出，看起来也一目了然，同时还可以使用文本编辑器来编辑，因此在Debug或生成小的测试程序时也很有效
+通过将方法description适用于生成属性表结构的NSArray和NSDictionary实例，ASCII码属性表就可以获得字符串格式
+反过来，从ASCII码属性表的字符串中还原对象结构时，发送方法propertyList到该字符串对象即可
+
+-(id)propertyList(NSString的实例方法)
+	从ASCII码属性表的字符串中还原并返回对应的对象结构，返回的结构为常量对象
+属性表和类型的对应关系如表13-1所示
+￼
+属性表内的字符串一般用“”括起来，只有英文数字时引号可以忽略，中文等要通过将Unicode编码到ASCII码范围内来表示
+
+二进制数据需要表示为十六进制并用<>括起来
+数组用（）括起来，各元素间用逗号分隔
+字典用{}括起来，键通常使用字符串，并与其值用等号链接，各个键值对之间用分号分隔
+
+下面我们来尝试使用ASCII码属性表来表示9.5节中图9-2教师设备的例子，整体使用一个包含3个字典对象的数组，如果含有布尔值就用数值来表示，实际上，数值也是被当作字符串来处理的，可以适当插入空格和换行
+
+{
+	{capacity =180;mic =1; projector =(PC,DVD); room = LR501; screen=1;}.
+	{capacity =150;mic=1; projector=PC;room =LR401;screen=1;},
+	{
+		capacity =45;
+		min =0;
+		note=“Chair with table top”;
+		room =LR402;
+		screen = 0;
+	}
+}
+
+3.3XML格式属性表
+
+NSArray或NSDictionary的实例通过使用方法writeToFile：atomically：就可生成XML格式的属性表文件，反之，从文件中读出属性表并复制对象时，可使用方法initWithContentsOfFile：，然而，对象构造只能为常量对象
+例如，可以使用Unicode表示的中文
+XML格式的属性表中使用的标签如表13-1所示，未来表示字典的键，这里还有用了<key>标签
+与之前的例子相同，图9-2（b）的教师设备一例中，这里用XML格式属性表来表示最初的字典对象的内容，可以看出，使用标签可以表示布尔值或数值
+
+<dict>
+	<key>capacity</key>
+	<integer>180</integer>
+	<key>mic</key>
+	<true/>
+	<key>projector</key>
+	<array>
+		<string>PC</string>
+		<string>DVD</string>
+	</array>
+	<key>room</key>
+	<string>LR501</string>
+	<key>screen</key>
+	<true/>
+</dict>
+
+3.4属性表的变换和检查
+
+转换或检查属性表格式时需要使用类NSPropertyListSerialization
+该类实例在Foundation/NSPropertyList.h中定义，方法的参数类型为NSPropertyListFormat如下所示
+
+NSPropertyListOpenStepFormat   ASCII格式
+NSPropertyListXMLFormat_v1_0   XML格式
+NSPropertyListBinaryFormat_v1_0 二进制格式
+
++(NSData *)dataWithPropertyList:(id)plist
+					    format:(NSPropertyListFormat)format
+					   options:(NSPropertyListWriteOptions)opt
+					       error:(NSError **)error
+	参数plist是表示属性表的对象（字典、数组等）将他转换为format指定的属性表格式（XML或者二进制格式）并返回数据对象，参数opt指定为0，参数error返回出错时的错误信息
++(BOOL)propertyList:(id)plist
+       isValidForFormat:(NSPropertyListFormat)format
+	检查参数plist的属性表是否符合format指定的转换格式
++(id)propertyListWithData:(NSData *)data
+			       options:(NSPropertyListReadOptions)opt
+			        format:(NSPropertyListFormat *)format
+				   error:(NSError **)error
+	从存储着任意一种格式的属性表的数据对象中将对象结构复原出来，参数opt指定为0
+	参数format为变量指针，用来返回参数data的属性表格式，如果Format为NULL则不返回结果
+	参数error返回出错时的错误信息
+
+关于属性表的详细介绍，请见参考文档“Property List Programming Guide”等
+    """},
 ];
