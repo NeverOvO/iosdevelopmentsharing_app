@@ -6075,4 +6075,214 @@ Foundation框架、Application框架、UIKit框架中很多类都有委托功能
 在第17章的示例程序中，也存在一些处理消息的对象由反应链构成来动态决定的地方
 在Cocoa环境中，生成包含GUI的应用必须掌握反应链相关的知识，详细内容请参考“Cocoa Event-Handling Guide”“Event-HandlingGuide for  iOS”等参考文档
     """},
+  {'title' : '第十五章（3）' , 'message' : """
+第十五章（3）
+
+5、消息传送
+
+5.1 消息传送的构成
+
+将消息发送给没有实现该消息方法的对象时，通常会出现运行时错误，但是，我们可以将不能被处理的消息转送给其他对象，这样的功能时可以实现的
+下面将详细说明转送的结构
+首先，蒋某消息发送到相应的接收者，这里，如果接收者没有实现应对该消息的方法，运行时系统就会发送如下消息给接收者
+
+-(void)forwardInvocation:(NSInvocation *)anInvocation
+
+这个方法在NSObject中定义，所有的对象都可以处理，在NSObject中，这个方法可调用如下方法
+-(void)doesNotRecognizeSelector:(SEL)aSelector
+	生成错误消息，表示异常NSInvalidArgumentException发生，无法处理参数选择器对应的消息
+
+也就是说，只要接收者重定义了forwardInvocation：方法，当被发送不能处理的消息时，就可以将其转送给其他对象，或者自己执行错误处理
+
+5.2消息转送需要的信息
+
+正如下面所说的那样，方法forwardInvocation：的参数会被传入NSInvocation对象，而利用该对象包含的信息，就可以实现消息转送，NSInvocation的对象中保存了目标、选择器、参数等消息发送所必须的全部元素
+
+下面是NSInvocation类的主要方法，NSInvocation的接口在头文件Foundation/NSInvocation.h中声明
+
+-(SEL)selector
+	返回设定的选择器
+-(id)target
+	返回设定的目标
+-(void)invokeWithTarget:(id)anObject
+	向目标参数发送表示接收者的消息，将消息的结构返回给源发送者
+
+也可以自定义NSInvocation接口，或者重定义选择器、参数、返回值，这里不再赘述
+
+5.3 消息转送的定义
+
+使用上述的NSInvocation信息，forwardInvocation：就可以被重新定义，从而实现消息转送，但是，可以转送的仅仅是参数个数固定的方法，参数为不确定的列表的方法则不能转送
+例如，调查不能处理的消息是否可以转送给对象fellow，当不能转送时则交由超类处理，可采用如下方式定义：
+
+-(void)forwardInvocation:(NSInvocation *)anInvocation{
+	SEL sel =[anInvocation selector];
+	if([fellow respondsToSelector:sel])
+		[anInvocation invokeWithTarget:fellow];
+	else
+		[super forwardInvocation:anInvcation];
+}
+
+再有，未来使运行时系统能够使用转送目的地的对象信息生成NSInvocation实例，必须重新定义返回的方法签名（method signature）对象
+为了表示方法签名，定义了NSMethodSignature类，他的对象保存着方法的参数和返回值，但在消息转送或通信之外的情况下，程序中是不处理的
+返回方法签名的方法在methodSignatureForSelector：和NSObject中定义，例如，转送目的地的对象如果是fellow，就可以按如下方式重新定义
+
+-(NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector{
+	if([super respondsToSelector:aSelector])
+		return [super methodSignatureForSelector:aSelector];
+	return [fellow methodSignautreForSelector:aSelector];
+}
+
+然而，使用转送方法处理的消息不能被respondsToSelector：等调用，当需要知道该消息是否为目标对象可处理的消息时，必须重定义respondsToSelector：等方法
+
+5.4禁止使用消息
+
+如前所述，方法doesNotRecognizedSelector：表示消息不能处理时所产生的异常
+利用此特性，在使用某个方法时就可以定义运行时产生的错误，一个典型的例子就是，当用超类定义的方法在子类中不能使用时，可以写下该方法及时禁止其使用
+例如，想禁止使用方法setSize：时，可以采用如下方式定义，这里_cmd为方法的隐藏参数，表示方法的选择器，所以，写下@selector（setSize：）也是一样
+
+-(void)setSize:(NSSize *)size{
+	[self doesNotRecognizeSelector:_cmd];
+}
+
+5.5程序示例
+
+这里定义一个行为类似于NSString子类的ReversibleString类，该类包含reversedString方法，返回反转后的实例变量的字符串，自身不能处理的其他消息则被转送给实例变量的字符串对象，而且使用ARC来管理内存
+
+代码清单15-1 类ReversibleString的定义及测试
+
+#import <Foundation/NSMethodSignature.h>
+#import <Foundation/NSString.h>
+#import <Foundation/NSInvocation.h>
+#import <stdio.h>
+#import <stdlib.h>
+
+@interface ReversibleString :NSObject{
+    NSString *content;
+}
+-(id)initWithString:(NSString *)string;
+-(id)reversedString;
+@end
+
+@implementation ReversibleString
+
+-(id)initWithString:(NSString *)string{
+    if((self =[super init])!= nil){
+        content =string;
+    }
+    return self;
+}
+-(id)reversedString{
+    unichar *buffer;//将Unicdoe字符串反转
+    int length,i,j,tmp;
+    id reversed;
+    if((length =[content length] <=0)){
+        return @"";
+    }
+    buffer =malloc (sizeof(unichar) *length);
+    [content getCharacters:buffer range:NSMakeRange(0, length)];
+    for(i =0,j=length-1;i<j;i++,j--){
+        tmp = buffer[i];buffer[j]=buffer[j];buffer[j] =tmp;
+    }
+    reversed =[NSString stringWithCharacters:buffer length:length];
+    free(buffer);
+    return reversed;
+}
+
+-(void)forwardInvocation:(NSInvocation *)anInvocation{
+    SEL sel = [anInvocation selector];
+    if([content respondsToSelector:sel])//content可以对应时转送
+        [anInvocation invokeWithTarget:content];
+    else
+        [super forwardInvocation:anInvocation];
+}
+-(BOOL)respondsToSelector:(SEL)aSelector{
+    if([super respondsToSelector:aSelector])
+        return YES;
+    if([self methodForSelector:aSelector] !=(IMP)NULL)
+        return YES;
+    if([content respondsToSelector:aSelector])
+        return YES;
+    return NO;
+}
+-(NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector{
+    if([super respondsToSelector:aSelector])
+        return [super methodSignatureForSelector:aSelector];
+    return [content methodSignatureForSelector:aSelector];
+}
+@end
+
+int main(void){
+    char buf[100];
+    id a,s,b,c,d,e;
+    @autoreleasepool {
+        scanf("%s",buf);
+        s=[NSString stringWithUTF8String:buf];
+        a=[[ReversibleString alloc] initWithString:s];
+        b=[[ReversibleString alloc] initWithString:@"Reverse?"];
+        printf("%s\n",[a UTF8String]);
+        c=[[a reversedString] stringByAppendingString:b];
+        printf("%s\n",[c UTF8String]);
+        d=[[ReversibleString alloc]initWithString:c];
+        e=[b stringByAppendingString:[d reversedString]];
+        printf("%s\n",[e UTF8String]);
+    }
+    return 0;
+}
+
+类ReversibleString包含content实例变量，并向他转送消息，为了转送消息，方法forwardInvocation：和methodSignatureForSelector：都被重新定义了
+执行结果显示，钙离子表示的是从文件中读入字符串，可见，除自定义的方法之外，还能够应对NSString方法UTF8String和stringByAppendingString
+
+然而，类ReversibleString也没有实现NSString所有的接口方法，例如，NSString的初始化器就没有实现，由于在实例初始化完成前，实例变量content还没有准备好，因此是不能进行消息转送的
+
+6、撤销构造
+
+6.1撤销构造的概念
+
+Cocoa环境中，未来能够撤销（undo）或重复（redo）之前的操作，准备了专门的类NSUndoManager，这里将将要说明使用NSUndoManager的撤销结构
+取消之前的操作，可以通过记录操作前的状态来还原，或者执行域当前操作消息相反的操作NSUndoManager根据后者实现了撤销
+NSUndoManager也是Foundation框架的类之一，接口在Foundation/NSUndoManager.h	中声明，将类方法alloc和初始化器init相组合就可以创建实例，下面将NSUndoManager的实例称为撤销管理器
+在包含多个文档窗口的应用中，每个窗口都有一个撤销管理器，有的应用也可以只限定一个，然而，在使用APplication框架中NSDocument类来管理文档窗口的应用中，可以从NSDocument实例取得撤销管理器
+应用中运行某种操作时，撤销管理器会同时记录包含你作用的消息，这就是撤销的基本结构，撤销管理器将这些消息有序地记录子啊撤销栈中，当有撤销请求时，就取出最新的记录内容执行
+为了说明，下面几一个最简单的例子
+
+-(void)increment:(int)n{
+	撤销管理中记录[self decrement:n];
+	value+=n;
+}
+-(void)decrement:(int)n{
+	撤销管理器中记录[self increment:n];
+	value-=n;
+} 
+由于者2个方法都包含你操作，因此执行该方法后就能取消已完成的方法，这样也就实现了撤销操作，但是撤销的方法在执行时，方法内也会执行“撤销管理器的记录”
+实际上，在执行撤销时，一旦“撤销管理器的记录”被执行，NSUndoManager就会将该消息记录在重复用的栈上，重复和撤销时反义关系，在重复中执行的”撤销管理器的记录“保存在撤销栈中，所以，按上述方法实现时，就实现了撤销和重复操作
+例如，假设方法increment：的调用（用数字标记）和撤销、重复的要求（用U和R标记）按如下顺序产生，此时栈状态如图15-7所示
+
++2  +3  +4   U    U   R 
+￼
+
+6.2在撤销管理器中记录操作
+
+在撤销管理器中记录操作有2个方法，其中之一是使用如下方法记录撤销时本应执行消息的接收器、选择器及参数对象、域行为方法相类似的方法也会被记录
+
+-(void)registerUndoWithTarget:(id)target
+				    selector:(SEL)aSelector
+				        object:(id)anObject
+
+另一个就是使用如下方法，该方法的返回值为撤销管理器自身
+
+-(id)prepareWithInvocationTarget:(id)target
+
+例如，上例中记录[self decrement:n]的部分可以按如下方式书写，但是，这样一来decrement：消息就会在这里被处理完成，而上述方法的返回值原本就可以处理decrement：吗？实际上这里有些技巧
+
+[[undoManager prepareWithInvocationTarget:self] decrement:n];
+
+该方法中，撤销时的接收者在接收消息的同时，为了对下面收到的消息（此例中为decrement：消息）进行特别处理，还会进行些准备工作，具体来说就是，接收应该在撤销时发送来的消息，并将其作为NSInvocation对象完整保存起来，15.5节中为了转送消息而使用NSIvocation而这里使用NSInvocation则时为了保存，行为方法不限制消息形式
+撤销管理器在请求撤销、重复时使用如下方法
+
+-(void)undo;
+-(void)redo;
+
+在窗口中包含撤销管理器时，常见的方法是通过窗口委托来管理撤销管理器，此外，就如Application框架的类NSTextView那样，有的则各自包含撤销管理器，所以从菜单等发出撤销/重复请求时，该消息就会被通过反应链传递，第17章的立体中又简单的撤销功能的实现，请参考
+撤销管理器中还有其他方法，如清除栈，将多个方法调用合并为一个撤销操作来记录，关于这些，本书不再一一介绍，详细信息请参考“Undo Architecture”等参考文件
+    """},
 ];
