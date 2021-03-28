@@ -6285,4 +6285,234 @@ NSUndoManager也是Foundation框架的类之一，接口在Foundation/NSUndoMana
 在窗口中包含撤销管理器时，常见的方法是通过窗口委托来管理撤销管理器，此外，就如Application框架的类NSTextView那样，有的则各自包含撤销管理器，所以从菜单等发出撤销/重复请求时，该消息就会被通过反应链传递，第17章的立体中又简单的撤销功能的实现，请参考
 撤销管理器中还有其他方法，如清除栈，将多个方法调用合并为一个撤销操作来记录，关于这些，本书不再一一介绍，详细信息请参考“Undo Architecture”等参考文件
     """},
+  {'title' : '第十六章（1）' , 'message' : """
+1、应用束
+
+1.1应用束的构造
+
+Cocoa应用会将执行文件或必要的资源格式保存在一个委托结构中，者称为应用束（Application bundle）、应用包装（wrapper）或应用包，资源就是应用执行时所必须的图像、声音、文本、设置信息等文件，像这样，将几个文件或目录以确定形式保存到目录结构中，然后在作为一个集合进行处理，在Cocoa中时很常见的方法，这样的结构一般称为束
+图16-1显示了应用束的基本构造，通常，在使用Xcode进行开发时，应用束会自动产生，程序没有必要逐一指定目录中的结构，此外，图中的概况在将来可能会发生变化，但实际中的差异会被使用束的NSBundle类所吸收，因此写代码时不需要太在意这一点
+￼
+通过上图可以看书Mac os x中产生了多个子目录，而iOS则并不明确区分存放执行文件及各种资源，二者都有Info.plist文件，该文件为属性列表格式，记载着应用相关的重要信息，此外PkgInfo文件中还记录了macOS文件类型及创建器类似的信息
+
+1.2nib文件和各语言资源
+
+使用Xcode（Interface Builder）生成的GUI定义被写到nib文件中，nib文件的后缀为nib，也就是Next Interface Builder，是NeXTstep的由来，在nib文件中，应用的菜单和窗口组件的配置等信息会被归档化，并在执行时被动态读入，根据用途或目的的不同，包含多个nib文件的应用也很常见
+nib文件的后缀名为nib或xib，xib文件为XML格式文件，两种后缀名的文件内容相同，在构建应用时，会作为带有后缀nib的资源文件被保存在应用束中
+从Xcode4.2起，iOS应用中开始可以使用storyboard文件，因为Storyboard是以场景移动为中心来构造GUI的，所以比较适合变现实变处理这样的应用的架构，在各场景内部，对象之间的关系和nib文件相同，在应用被构建的同时，Storyboard内部也会变成nib文件资源
+在使用nib文件、消息、用于说明的文本及突破等资源文件时，用户可能会需要根据语言来切换资源，另一方面，图片图像及效果声明文件等与资源也被期待着可以在各语言间共享
+与语言无关的共享资源在Mac os x系统中被放置于Resources目录下，在iOS系统下则被放置在应用束目录下。根据所选择的语言种类来切换的资源被放置于“语言名.lproj”目录下，语言名采用ISO语言编码标准，使用en表示英文，用jp表示日本（见下文的Column）后缀名“lproj”来自于language project 并从NeXTstep使其开始使用
+应用在运行时，会在运行环境中查找选择的（或是高优先度的）语言子目录，并使用其中的资源，NSBundle类执行资源检索，因此程序就不需要记录指定语言的编码
+使应用能够对应特定语言的进程，我们称之为本地化，在Cocoa应用中，如果能在编码时使之对应多种语言，那么， 之后只需子啊应用束中追加特定语言的资源就能简单地实现本地化
+
+专栏：指定语言和地区
+
+存储个语言资源的目录名，基本上使用ISO 639-1标准中指定语言的两个字母，有时也会根据需要将地区代码和本地ID组合起来使用，下面例举几个重要语言的指定
+在英语中，如果想要区分英国方言和美国方言，可以指定为en-GB en-US
+￼
+
+1.3信息文件的主要内容
+
+应用束内的信息文件Info.plist以属性列表的形式将应用执行所必需的信息记录起来，当使用Xcode创建工程时，会使用“工程名-Info.plist”这样的文件名来进行文件的编辑。构建应用时，应用束中就会基于该文件生成Info.plist
+使用应用束时，信息文件内关键词CFBundleIdentifier指定的字符串称为应用标识符（application identifier）该标识符常被用来系统中寻找相应的应用程序，为了不产生重名，推荐使用Java的包定义方式，例如com.apple.iPhoto
+主键及其含义如表16-1～16-4所示，键的前缀文字LS是”Launch Services“的意思，键的含义和相关设定请参考“Information Property List Key Reference”等
+属性列表中实际的键值和Xcode中表示的字符串有时是不同的，例如，之前所述的键CFBundleIdentifier可能就会被表示为“Bundle indentifier”（下面称为Xcode名）为表示键值原本的意思，在Xcode中，可以右击并选择上下文菜单中的“Show Raw Key/Values”
+￼
+￼
+￼
+
+1.4通过NSBundle访问资源
+
+NSBundle是为各种束提供接口的类，可以从指定的束中搜索有GUI定义的nib文件、图像、声音、加载代码等，下面展示了几个主要方法，详细情况请参考相关文档，NSBundle的接口在头文件Foundation/NSBundle.h中记载：
+
++(NSBundle *)mainBundle
+	程序所包含的应用束也称为主束，该方法返回与主束的路径相对应的对象，不能识别应用束时返回nil
++(NSBundle *)bundleWithPath:(NSString *)path
+	返回path指定路径的束对象，没有path可访问的束时返回nil，此外也有使用NSURL指定位置的方法BundleWithURL
+-(NSString *)bundleIdentifier
+	返回信息文件（Info.plist）中指定的应用程序名
+-(NSDictionary *)infoDictionary
+	将信息文件的内容作为字典对象返回
+-(id)objectForInfoDictionaryKey:(NSString *)key
+	在信息文件（Info.plist）中，返回以参数key为键值的对象，可能的话将其本地化后返回
+
+NSBundle实例表示具体的束，如应用束，该实例可以寻找束内的资源
+-(NSString *)pathForResource:(NSString *)name
+				     ofType:(NSString *)extension
+	在接收者的束内，返回name指定的名字和extentsion指定的有后缀的资源路径名，文件没有后缀时麻将extension指定为nil或@“”，找不到文件时返回nil，同样，也有使用NSURL返回位置的方法URLForResource：withExtension：
+
+上面的方法pathForResource：ofType：首先会在束内顺序查找根据运行环境选定的语言子目录，如果找不到就在Resources下面（iOS时在应用束下）寻找，这和使用NSBundle的查找资源的方法是一样的
+例如，可按如下方式读取应用束内的SoCool.jpg图像，并将其作为NSImage（操作图像的类）的实例使用，图像文件在Resources下时也可以被特定语言本地化，程序方面不用担心这一点
+
+NSImage *coolImage =nil;
+NSBundle *bundle =[NSBundle mainBundle];
+NSString *imgPath=[bundle pathForResource:@“SoCool” ofType:@“jpg”];
+if(imgPath)
+	coolImage=[[NSImage alloc]initWithContentsOfFile:imgPath];
+
+获取保存资源的路径可以采用resourcePath方法，但是不推荐使用如下方式获取资源路径，当不能本地化时，也不能使用后述的指定ios资源的方法
+
+rpath =[[NSBundle mainBundle] resourcePath];
+imgPath =[rpath stringByAppendingPathComponent:@“SoCool.jpg”];
+
+从束中获取资源路径或URL的方法不只上述一种
+此外，在Mac os x平台中，可以利用apthForImageResource：方法获得图像路径，他是Applictaion框架中被作为范畴添加到NSBundle中的方法，在AppKit/NSImage.h中声明，其他nib文件或声音文件的获取方法请参考“NSBundle Additions Refrerence”
+
+1.5 iOS中资源的访问
+
+如前所述，iOS中也可以使用NSBundle方法来访问资源，但是，因为iOS有特殊的后缀，所以这里先介绍一下其概要
+在iOS中，只要开发一个应用包，iPhone和iPad iPod 等就可以使用，这时，为了适应所使用的设备，nib文件的内容和图像的大小就必须要改变，但是人们又不想为各种设备分别进行编码工作，于是就可以使用这样一种指定方法，即根据所使用的设备来自动选择资源或参数
+
+（1、按设备准备任意资源
+在iOS中，当束的检索请求被指定为“文件名.后缀”这样的文件时，就会搜索如下形式的文件
+文件名～设备.后缀
+
+设备部分就可以指定以下几种形式
+iPhone：表示iPhone或iPod
+iPad ：表示iPad
+例如：如果束内有“Above~iphone.nib”和“Above~ipad.nib” 那么，iPhone在运行中要加载“Above.nib”，实际上就加载了 “Above~iphone.nib”，当然，如果只有”Above~nib”那么也只能加载它了，该记法在图像、声音等其他资源中也可以使用
+
+（2、准备高像素图片
+可以添加高像素的图片，iPhone4的像素是以往的2倍，使用iPhone4读入图像时，如果有高像素文件，那么能够支持自动读入的话就会十分方便，为此，高像素图片可使用如下文件名设置
+
+文件名@2x.后缀名
+文件名@2x~设备.后缀名（兼容上述设备指定时）
+
+UIKit框架中使用类UIImage类处理图像，该类可以使用如下方法检索并加载主束内的图片文件，生成包含图片的实例
+
++(UIImage *)imageNamed:(NSString *)name
+
+在iPhone4执行应用的过程中，当给该方法指定了“beyond.png”文件名时，如果主束中存在beyend@2x.png文件，他们就会被自动读取
+
+（3、使用信息文件的键值字符串指定设备
+未来和设备相匹配，可以详细设置信息文件中读入的信息
+例如，信息文件的键值UIInterfaceOrientation会在应用启动时指定接口适用的类型（表16-4）信息文件中记录的内容在各个设备上通常是共享的，如果只想在iPad中改变设置，可以使用如下字符串作为键值
+
+UIInterfaceOrientation~ipad
+
+像这样，在一般的键值字符串后面加上后缀～设备，即可表示仅此设备适用，设备部分可以指定如下值：
+iPhone：表示iPhone
+iPod ：表示iPod
+iPad ：表示iPad
+
+关于iOS资源的详细内容，请参考“iOS Application Programming Guide” “iPad Programming Guide”” Resource Programming Guide”等参考文档
+
+1.6通用二进制
+
+通用二进制时苹果公司的专门术语，是为了能在多个操作系统不同的CPU上运行二生成的执行文件形式，在PowerPC的Mac以及Intel的Mac中可以运行Mac os x，iOS平台下，也希望能适配各种处理器版本不同的iPhone手机，远离很简单，只需将不同CPU所对应的机器指令保存在一个文件中，然后在执行时选择合适的来运行即可，同样32位及64位所对应的机器指令也可以包含在通用二进制文件中，该技术在拥有4个不同的运行平台的POPENSTEP中已经得到了实现，称为MAB（Multi-Architecture Binary）或胖二进制（fat binary）
+此外，通用应用这个术语指的是仅用一个应用包就可以在多个不同的环境下运行的应用，为此，束内保存了面向不同环境的资源和设定信息，在很多情况下，执行文件就是通用二进制
+应用通常有Xcode构建，但也可以由命令行生成通用二进制，下面将简单说明一下其方法
+首先生成某个框架专用的执行文件时，编译器使用-arch选项，例如，编译pri.c源文件来生成面向Intel32位机器的执行文件时，可按如下方式，编译器使用什么样的机器都没有关系（“%d”位命令提示符）
+
+% clang -arch i386 pri.c
+
+通常会生成a.out执行文件，这里，通过为lipo命令指定-info 选项，就可以查看它包含什么样的运行指令，如下所示
+
+% lipo -info a.out
+Non-fat file:a.out is architecture :i386
+
+生成同时面向32位及64位指令的执行文件时，重复指定-arch 选项即可，而如果指定8.4节中介绍的-m32 或-m64选项，就只能生成其中一方的代码指令
+
+-arch i386 -arch x86_64 pri.c
+%lipo -info a.out
+Architectures in the fat file :a.out are : i386 x86_64
+ 基本方法就是在编译时面向各架构分别制定编译选项，所以，源程序中如果有编译警告，指定的框架数就可能会反复显示
+在Mac os x 10.6之前的版本中可以生成面向PowerPC的指令代码（架构指定为ppc），而在10.7后就不行了，因为32位代码指令中不可以使用现代运行库，使用了ARC等新功能的源程序不能编译，所以，在Mac os x 10.7中，通用二进制的优势并没有显露出来，而且指定编译器架构i386或x86_64时，也可以分别利用__i386__或__x86_64__这样的宏定义
+iOS平台的机器使用ARM架构的CPU，因为编译时指定的架构师armv6或armv7，所以在生成iPhone和iPad上执行的通用应用时，要同时指定armv6和armv7（因为有兼容性，所以单指定armv6时也能运行）除此之外还有宏定义__arm__
+上述查看执行文件时使用的命令lipo，原本是被用来整理面向各个架构的执行代码并生成通用二进制的，相反也可以被用来抽取其中的一部分代码，在生成通用二进制的情况下，编译时可以只指定必要的-arch选项，此外也可以生成面向各种框架的执行文件，然后再使用lipo命令对其加以整理，详情请参考在线手册
+
+2、加载nib文件
+
+2.1nib文件实例化
+应用在执行打开多个窗口，或者打开新面板时，优势会从保存GUI组件间关联及配置的nib文件中读取信息，下面将简要说明一下这个处理过程，因为nib文件的生成方法不在本书的研究范围内，所以不在此做说明
+请看图16-2，假设图右侧的nib文件部分时设定选项参数的面板，这个对象或实例并不是在应用启动时进行实例化，而是在必要时才进行
+￼
+nib文件定义了GUI组件间的通信消息 其中必须有一个称为所有者的对象，途中吗ing位mediator的对象就承担着该角色，所有者就是连接nib文件内的对象群和外部事件的桥梁，应用方面的咨询及nib文件内对象的访问基本上都是通过所有者来传达的
+图中，myController对象会生成penalCtrl，同时显示nib文件的加载
+加载nib文件后，其中定义的对象会被实例化，但是所有者不会被实例化，所有者使用的对象在加载nib文件前就存在，像这样，所有者可以根据与nib文件外对象的关系来设定，也可以确定nib文件中的对象，两者可以同时存在
+加载nib文件就昂对象实例化与在13.2节中说明的解档基本相同，nib文件是对象图的归档，所有者的作用就相当于根对象，但是，nib文件中也可以生成无指向的指针对象，在这内存管理上有时会出现问题，这一点在下面的说明也会提到
+
+2.2在Mac os x中加载nib文件
+
+在Mac os x中加载nib文件通常使用如下方法
+和其他资源一样，如果有面向语言的目录就从中查找，这时NSBundle的类方法，在Application框架中被定义为范畴，接口在Application/NSNibLoading.中声明
+
++(BOOL)loadNibNamed:(NSString *)aNibName
+			     owner:(id)owner
+	在束内查找字符串指定的nib文件（不需要后缀名），并将所有者对象owner实例化，如果失败就返回NO
+
+参数owner指定的对象必须与nib文件内设定的类相同，如图16-2，将myController生成的对象panelCtrl指定为参数owner来加载nib文件，这样一来，nib文件内的对象就会被实例化，panelCtrl就开始作为nib文件内的mediator而发挥作用
+这里，首先详细说明内存的管理
+在使用引用计数的管理方式管理内存时，nib文件内的所有（除了所有者）对象都会被引用计数置为1并被实例化，接着，构造对象间的引用关系，被其他对象持有的对象则通过autorelease来释放所有者关系，如果nib文件中存在没有被引用的关系，那么最终便只有该对象不会被释放而保留着，所以就需要使用其他方法来释放内存
+使用垃圾回收时，所有者强引用的对象因为可以访问所以没有任何问题而如果nib文件中存在没有被引用的对象，那么该对象在实例化后就有被释放的危险
+
+2.3在iOS中加载nib文件
+
+iOS中NSBundle使用下面的方法，和其他资源同样，如果存在面向所使用的语言的目录就从中查找，该方法用UIKit框架的范畴定义，接口在UIKit/UINibLoading.h中声明
+
+-(NSArray *)loadNibNamed:(NSString *)name
+				  owner:(id)owner
+			        options:(NSDictionary *)options
+	在束内炒炸字符串命名的nib文件（没有后缀名），并将所哟着对象owner实例化，参数options中可以指定选项，而且一般都传入nil，在nib文件内，没有被其他对象包含的对象（顶级对象）将用数组保存并返回
+
+在iOS中，将nib文件中的所有对象（所有者除外）的引用计数都置为1并进行实例化，接着，构筑对象间的引用关系，被其他对象持有的对象则通过autorelease来释放所有者关系，使用键值编码的setValue：forKey：方法（第20章）来设定对象出口，需要明确出口所使用的实例变量的引用、存储方式时，请准备设置或声明属性
+nib问津中如果存在没有被引用的对象，则将其保存在返回数组中，无论使用什么方法，我们都要确保内存释放
+
+2.4nib文件内的包含循环
+
+使用ARC管理内存时，nib文件内的对象之间容易形成包含循环，这点一定要注意避免
+基本上nib文件就是一个树形结构，其中，所有者时根节点，并合其他组件和对象互相关联，首先，所有者引用顶层对象（必能称为其他对象组件的对象）时使用强引用，窗口上配置的组件有层次关系，保持着树形构造，另一方面，程序新增的自定义对象，可以将这些对象作为出口自由引用，因此，自定义对象包含的出口原则上应该通过弱引用才能使用
+框架提供的类中，有些没有对应弱引用，由于这样的类会使用__unsafe_unretained 修饰的实例变量或assign属性的特性，因此一定要注意不要有空指针，不管是否有弱引用，在释放对象前，都需要将引用其他对象的实例变量赋值为nil，这点请注意
+
+2.5nib文件内对象的初始化
+nib文件内包含的对象如果实现了如下方法，在实例化后该方法就会运行
+
+-(void)awakeFromNib
+	从nib文件中读出，在完成实例化、出口及访问的链接口调用该方法
+该方法在Application及UIKit框架中被声明为非正式协议，头文件分别为NSNibLoading.h和UINibLoading.h因为是非正式协议，所以任何类都可以实现该方法并记录初始化流程
+
+2.6启动应用
+
+应用最先读入的nib文件中，保存着菜单等运行应用所需要的重要信息，这称为主nib文件，信息文件（表16-2）中也有文件名，该文件在应用启动后运行回路（见15.12节）启动前被读入
+加载主nib文件以及启动运行回路可通过Mac os x中NSApplication及iOS中的UIApplication类来完成，NSApplication类是Application框架的类，接口位于AppKit/NSApplication.h中，UIApplication类是UIKit框架中的类，接口在UIKit。UIApplication.h中记述
+该实例在应用启动后仅被生成一个，除运行回路之外，还负责管理应用的各种资源，如菜单、窗口、应用的隐藏或终止等
+未来访问这个唯一的实例，NSApplication类与UIApplication类都适用sharedApplication类方法，该方法是15.2节中也曾描述过的典型的单体设计模式
+
++(NSApplication *)sharedApplication(NSApplication 类)
++(UIApplication *)sharedApplication(UIApplication 类)
+	返回应用类的唯一一个实例对象
+	使用NSApplication时，如果实例不存在就生成实例，并执行必要的初始设置
+
+为了生成Mac os x应用，在Xcode中选择Cocoa应用后，如下main函数就会自动生成（Xcode4.2版本）
+
+#import <Cocoa/Cocoa.h>
+int mian(int argc ,char *argv[]){
+	return NSApplicationMain(argc,(const char **)argv);
+}
+
+函数NSApplicationMain（）为Application框架提供的函数，内容如下所示，这里MSApp为表示NSApplication实例的全局变量
+
+int NSApplicationMain(int argc,char *argv[]){
+	[NSApplication sharedApplication]; //1
+	if([NSbundle loadNibNamed:主nib名 owner:NSApp]) //2
+		[NSApp run]; //3
+	exit(0);
+}
+
+在开始执行后，main函数开始运行，1生成NSApplication实例，2加载主nib文件，3启动运行回路
+另一方面，在Xcode中，选择面向iPhone或iPad的应用对象后，就会自动生成如下main函数
+
+#import <UIKit/UIkit.h>
+#import “AppDelegate.h”
+
+int main(int argc ,char *argv[]){
+	@autoreleasepool{
+		return UIApplicationMain(argc,argv,nil,NSStringFromClass([AppDelegate class]));
+	}
+}
+
+函数UIApplicationMain（）时UIKit框架提供的函数，第三个参数需要使用字符串指定UIApplication或其子类名，如果为nil则选择UIApplication，第四个参数需要指定被作为UIApplication的委托（参考15.2节）使用的类名，AppDelegate时同样生成的委托类，函数UIApplicationMain（）的内部虽然被隐藏了，但基本上和NSApplicationMain（）同样
+此外，应用中所固有的各种初始化设置，不需要方法main函数中，而是应该写到NSAppliaction和UIApplication的委托对象内，应用启动后，由于通知启动完成的消息会被送给委托对象，因此应在委托内部书写，而应用切换时或应用终止前想要执行的操作也可以写入，详情请参考NSApplicationDelegate协议或UIApplicationDelegate协议的参考文档
+
+    """},
 ];
