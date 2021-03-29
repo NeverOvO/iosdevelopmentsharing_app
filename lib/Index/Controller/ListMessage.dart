@@ -6515,4 +6515,341 @@ int main(int argc ,char *argv[]){
 此外，应用中所固有的各种初始化设置，不需要方法main函数中，而是应该写到NSAppliaction和UIApplication的委托对象内，应用启动后，由于通知启动完成的消息会被送给委托对象，因此应在委托内部书写，而应用切换时或应用终止前想要执行的操作也可以写入，详情请参考NSApplicationDelegate协议或UIApplicationDelegate协议的参考文档
 
     """},
+  {'title' : '第十六章（2）' , 'message' : """
+3、iOS的文件保存场所
+ 
+3.1主要目录及功能
+
+在iOS中，未来安全起见，应用间的文件交换等会收到限制，为此，与个人电脑环境不同，文件保存的场所也被局限在了各应用所分配的特定场所中，该场所在应用安装时已被决定，称为应用的home目录，应用程序包及生成的文件被保存在home目录下，删除应用时会将其一并删除
+应用的home目录下设置着主要目录，各目录具有不同的功能，文件能够长期保存的场所，与iTunes同步的场所，以及备份场所的路径名都是固定的
+在这些文件夹中创建的文件，必须有应用程序来管理，不需要的文件如果不被删除，设备的内存容量就会变得紧迫
+
+home/应用名.app/
+	应用束本身存放在这里，因为有署名所以不能改变
+home/Documents/
+	应用生成并保存文件的场所，与iTunes连接时启动备份，而且，将信息文件的键值UIFileSharingEnable设定为YES后，就可以通过iTunes使文件和电脑同步
+home/Library/Preferences/
+	应用设定（16.4节中介绍的用户默认）被写入，与iTunes不会备份
+home/Library/Caches/
+	能够将应用临时使用的信息作为文件保存在这里，在下一次启动时加载可以利用的操作历史或操作过程等信息，但是，在设备还原等时可能会随之消息，iTunes不会备份
+home/tmp/
+	能够将应用临时使用的信息作为文件保存在这里，在应用不运行期间可能会被系统释放
+
+3.2获取目录路径
+
+在获取上述目录中的Documents和Caches的路径时，推荐使用Foundation框架的函数NSSearchPathForDirectoriesInDomains（）函数和使用的参数Foundation/NSPathUtilities.h中声明
+
+NSArray * NSSearchPathForDirectoriesInDomains(
+	NSSearchPathDirectory directory,
+	NSSearchPathDomainMask domainMask,
+	BOOL enpandTilde
+)
+
+该函数本来是Mac os x专用的，形参参数的组合在iOS中可能没有意义，而且，由于返回数组中只保存有一个路径，所以请使用objectAtIndex：方法将首部的元素取出使用
+第一个形参中指定目录的种类，未来获取Documents和Caches的路径，请分别指定参数NSDocumentDirectory和NSCachesDirectory无论哪种情况，都请指定第二个形参味NSUserDomainMask，第三个形参为YES
+而且，tmp目录的路径可使用下面的函数获取
+NSString *NSTemporaryDirectory(void)
+
+然而，可以使用这些函数取得的目录路径不一定存在，必要时需要由程序创建，为了查找路径是否存在或创建路径，可以使用Foundation框架的NSFileManager类，使用类方法defaultManager获的唯一的实例，并使该实例负责指定路径相关的操作，这里不再详细讨论
+
+4、用户默认
+
+4.1保存设定值
+
+易用的应用会保存曾经的设定值、配置窗体等，并在下次执行时直接使用之前的设定，这样的设定值包括环境设定窗体中的设置，以及运行中保存的用户选择的内容等
+在Cocoa应用中，未来保存这些设定而使用了一种通用结构-用户默认（user defaults）或者称为默认数据库，类NSUserDefaults提供了访问用户默认所需的接口
+用户默认会访问与字典对象相同的字符串键值这样的信息，Mac OS X中，被记录的信息被保存在～/Library/Preferences/目录下的属性文件中，保存用户默认的文件名为应用名加后缀名“plist”
+iOS中用户默认被保存在应用的根目录下的Library/Preferences/目录中
+iOS中可以通过应用来改变设定值，也可以从系统工具“设定”中构建可设定的应用，为此，应用需要包含Settings窗体，详情请参考“iOS Application Programming Guide”等
+
+4.2默认域
+
+用户默认可以被分为多个组考虑，这些组称为域或者默认域（defaults domain）在域中，有的将内容保存在文件中并在之后继续使用，二有的则尽在应用启动时存在，下面将详细说明
+（1、应用域
+	使用属性列表管理的应用固有的设定值的集合，该设定值的饭集合称为应用域，域名中使用应用标识名（见16.1节）
+（2、全局域
+	使用者使用账户设定的各个应用共享的设定值，例如，所使用的语言，是否附加文件名后缀，以及当文字大于多少时将其平滑表示等，都设计多方面的因素，域名为NSGlobalDomain
+	该域即使在iOS中也有效，可以获得设定的语言或键盘信息
+（3、形参域
+	Mac OS X的Cocoa应用可以从终端命令行启动，例如，虽然文本编辑器在/Application/TextEdit.app的路径下，但用命令直接指定应用束内的执行文件也可以启动
+
+% /Application/TextEdit.app/Contents/MacOS/TextEdit
+
+此时，应用域或全局域中包含的设定值可以作为参数来指定，例如，全局域中名为AppleAntiAliasingThreshold的键值表示将大于某一数值的文字平滑表示，在启动时可按照如下方式使用（因为太长所以显示为两行，实际上是一行）
+
+% /Application/TextEdit.app/Contents/MacOS/TextEdit-AppleAntiAliasingThreshold 15
+
+于是，在该文本编辑器中，15点以下的文字都不会被平滑表示，这时因为全局域的设定值是通过参数指定来临时传入的，所以通常在重新启动时就会恢复原值
+像这样，参数指定的设定值组就称为参数域（argument domain）域名用NSArgumentDomain表示，且不能保存在文件中，iOS不使用该域
+（4、语言域
+	指定使用语言时，会生成该语言名（例cn）为域名的临时域（不保存文件）
+（5、登陆域
+	用户尚未设定应用的各种设定值时使用的默认值集合，域名为NSRegistrationDomain，且不被保存在文件中
+
+当应用使用NSUserDefaults类从键值中查找对应的设定值时，会按如下顺序查找上述5个域，并使用最先找到的值
+
+1、参数域
+2、应用域（保存在文件中）
+3、全局域（保存在文件中）
+4、语言域
+5、登陆域
+
+如果各种设定值都需要默认值，可以将键和值的集合以字典方式组织，并在应用初始化时在登陆域中登陆，因为登陆域查找在最后执行，因此，当其他域都不能登陆时，就只能使用默认值
+
+4.3查找用户默认的工具
+
+Mac OS X平台下，用户默认除了在各个应用中使用外，还可以通过直接编辑属性列表，或使用命令行工具defaults来进行访问，只在终端上输入defaults就可以看到使用方法，也可以是使用main命令查看帮助手册
+通过下面的方式可以全部显示某个应用域的内容，域名为应用的标识名，这里指定“-globalDomain”或NSGlobalDomain就能显示全局域的内容
+
+% defaults read 域名
+
+想要查看某个键的值时可通过如下方式
+
+% defaults read 域名 键
+
+不使用read而使用write或delete时，虽然可以写入或修改，但如果胡乱修改用户默认，就会导致应用无法正常运行等问题，所以一定要注意，而如果方法来这样的状况，就要删除应用域对应的文件并重新启动应用
+
+4.4NSUserDefaults概要
+
+下面将简要说明一下未来访问用户默认而提供的NSUserDefaults类，类接口在Foundation/NSUserDefaults.h中记述 全局域、参数域、登陆域的域名字符串分别为NSGlobalDomain、NSArgumentDomain、NSRegistrationDomain变量
+
+（1、取得实体对象
+NSUserDefaults只会生成一个实例并使用，可以使用下面的类方法来取得该实例对象
++(NSUserDefaults *)standardUserDefaults
+	最初调用时将实例初始化后返回，一般情况下，自第二次调用起，会返回同一个实例
+
+（2、取出键对应的值
+要取出键对应的值，可在NSUserDefaults实例中使用如下方法，如前所述，键值是通过在多个域中查找而得到的
+
+-(id)objectForKey:(NSString *)defaultName
+	取出键值对象
+	返回值为属性列表对象，即字符串、数据、日期、数组或字典对象，没有键值时返回nil
+-(NSString *)stringForKey:(NSString *)defaultName
+	将键值作为字符串对象取出，取出的对象不是字符串或没有键值时返回nil
+	同样，取出数据对象、数组对象、字典对象、URL时，可以分别使用下面的方法
+	dataForKey: arrayForKey:  dictionaryForKey:  URLForKey:	 
+-(NSArray *)stringArrayForKey:(NSString *)defaultName
+	取出包含字符串对象的数组对象，取得的结果不是字符串对象以及不存在键值时返回nil
+-(NSInteger)integerForKey:(NSString *)defaultName
+ 	取出键对应的对象，并返回其整数值，不存在值时返回0
+	同样，取出对象后返回实数值、双精度值、布尔值的方法分别是：
+	floatForKey：、doubleForKey：、boolForKey：
+
+（3、指定键并设置或删除值
+在应用域中设置键值
+
+-(void)setObject:(id)value
+		forKey:(NSString *)defaultName
+	在应用域中设置键对象，value如果不是属性列表可以处理的对象，则不能保证该处理的正确性
+-(void)setURL:(NSURL *)url
+	     forKey:(NSString *)defaultName
+	在应用域中设置键对应的NSURL实例
+-(void)setInteger:(NSInteger)value
+	         forKey:(NSString *)defaultName
+	在应用域汇总设置参数的整数值
+	同样，设定实数值、双精度值、布尔值的方法分别是
+	setFloat：forKey：、setDouble：forKey：、setBool：forKey：
+-(void)removeObjectForKey:(NSString *)defaultName
+	从应用域中删除键对应的入口
+
+（4、设定默认值
+
+-(void)registerDefaults:(NSDictionary *)dictionary
+	在登录域中添加泊村默认值的字典对象，指定的键值没有在应用域等其他域中登录的情况下，将登录域作为默认值使用
+
+（5、取出域内容
+
+-(NSDictionary *)dictionaryRepresentation
+	将所有的域内容作为字典对象取出
+
+（6、在文件中显示设定内容
+
+-(BOOL)synchronize
+	将域内容写入到对应的属性列表文件中，因为该方法通常为自动调用，所以除了在应用终止时需要在文件中显示调用外，其他情况下都不用调用，处于某种原因不能写入文件时，返回NO；
+
+5、应用的本地化
+
+5.1消息的本地化
+
+使用束结构可以将程序显示的消息与各种语言相对应，ObjectiveC的源程序，没有必要输入中文字符串
+为此，首先需要生成Localizable.strings文件，并将其保存到各语言对应的目录（语言.lprog）中，文件名也可以为别的名字，不特别指定时使用Localizable.strings
+Localizable.strings文件时将键字符串用等号连接成一对，并在结尾设置分毫，无论是键还是值，一般都用“”括起来，也可以省略值，不过这是也要同时删除等号，值即使被省略，键本身也仍然会被当成入口值，此外，也可以用/*…*/的形式来书写命令
+键字符串一般使用ASCII码范围内的字符串来保存消息（一般为英语）值字符串中记录着使用了目标语言（中文等）字符集的消息，文件一定要使用UTF-16编码，仅使用ASCII码范围内的字符就可以记录全部时（英语）保持ASCII编码方式即可
+下面来看一个Localizable.strings文件的简单用例
+
+面向英语的Localizable.strings文件
+
+/* File does not exist */
+“File does not exist”;
+/* Do you want ? */
+“Do you want ?” = “Do you want to do it , Really ?”;
+/* OK */
+“OK”;
+
+面向中文的Localizable.strings文件（UTF16编码）
+
+/* File does not exist */
+“File does not exit ” =“ 文件不存在 ”;
+/* Do you want ? */
+“Do you want ? ” = “ 当真可以执行吗？”;
+/* OK */
+“OK ”;
+
+应用本身的束（主束）的NSBundle对象，通过使用下面的消息，可以取得键值字符串
+
+-(NSString *)localizedStringForKey:(NSString *)key
+						value:(NSString *)value
+						table:(NSString *)tableName
+	在束内查找参数tableName指定的名字及含有后缀名”.strings”的文件，返回参数key指定的键值字符串，当找不到对应的键时，参数value指定返回值
+	tableName为nil或@“”时，使用Localizable.strings
+
+为了更方便地获得本地化的字符串，定义了使用上述方法的宏（头文件Foundation/NSBundle.h）从主束中取出字符串时，使用该宏十分便利
+NSLocalizedString(key,comment)
+	在主束内查找文件Localizable.strings返回参数key指定的键值字符串，ObjectiveC方式下不使用comment，字符串对应的注释可以自由书写
+NSLocalizedStringFromTable:(key,tbl,comment)
+	在主束内查找参数tbl指定的文件，返回参数key指定的键值字符串
+
+上述Localizable.strings的例子中，“File does not exist”对应的本地化字符串可以通过如下方式获得
+
+NSSting *msg=NSLocalizedString(@“File does not exist”,NO_FILE);
+
+而且，这些在源文件写的宏，可以使用命令genstrings生成Localizable.strings
+在命令行中输入genstrings且不加参数，将显示帮助信息
+
+5.2本地化指针
+
+使用中文与英文不同，显示消息不能用中文编码，即使只构建中文应用时也需要有Localizable.strings该文件以及定义了GUI的nib文件、帮助等，包含中文的文件全部都用过被保存在zh_CN.lproj目录下
+将英语、法语等多语言的应用本地化为中文时比较容易的，基本上只需生成各国语言子目录和Localizable.strings、nib文件及各种资源的中文版，并追加zh_CN。lproj就可以了
+如果仅仅是英语应用，则不需要担心本地化，包括英语在内，面向各语言的子目录和Localizable.strings基本上都不是必须的，但是，这样的应用被认为没有国际化（internationlize）
+相反，将这样的应用在时候进行国际化或本地化是非常困难的，因为消息是写在源程序里面的，所以必须要使用NSLocalizedString（）等来修改
+虽然域本地化相关的详细设定和目录结构的生成可交给Xcode来完成，但我们需要了解本地化设定和实际生成的应用结构之间是如何对应的
+
+专栏：本地化应用名
+
+Mac的Finder及iPhone iPad的本地界面中显示的应用名可以设为各国语言，例如，这里我们来看一下如何将“SpaSearch.app”改为“温泉搜索（临时版）.app”
+首先，信息文件（Info.plist）内应用名使用了应用束的名字，此时，需要书写CFBundleDisplayName和CFBundleName键（参考表16-1）
+
+<key>CFBundleName</key>
+<string>SpaSearch</string>                      < ——
+<key>CFBundleDisplayName</key>		          | 
+<string>SpaSearch</string>			        < ——
+
+然后，面向各语言的子目录中生成InfoPlist.strings文件，该文件形式上与Localizable.strings相同，并用Unicode编码，子目录zh_CN.lproj（或zh.CN.lrog）下的InfoPlist.strings编辑如下
+
+CFBundleDisplayName=“温泉搜索（临时版）”;
+CFBundleName =“温泉搜索”;
+
+Finder的表示使用CFBundleDisplayName字符串，CFBundleName被用于应用启动时菜单栏的表示，需指定短于16个字符（中文指定为8个字符）的字符串
+
+5.3本地化
+
+本地化（locale）就是编辑文本时的各种习惯或使用单位等的集合体，例如，表示日期的方式、作为小数点使用的字符（句号还是逗号）等，根据国家和语言的不同是存在差异的，为了生成在任何语言环境下都能通用的软件，就需要事先准备好这些字体，然后再在软件操作时选择合适的显示
+为了表示本地化，Cocoa环境中提供了NSLocale类，当创建可以应对各种语言或地域习惯的应用时，就可以使用该类，用户根据使用环境而选择的本地化信息称为当前本地化，应用使用当前本地化信息进行操作
+例如，NSString中有localizedStringWithFormat：类方法，它与stringWithFormat：同样可以指定字符串格式，假设使用该方法进行如下记述：
+
+id date=[NSDate date];//返回表示当前时间的对象
+id str=[NSString stringWithFormat:@“Date=%@”,date];
+printf(“%s\n”,[str UTF8String]);
+str=[NSString localizedStringWithFormat:@”Date=%@”,date];
+printf(“%s\n”,[str UTF8String]);
+
+在中文环境下执行时，结果显示如下
+
+Date =2010-09-10 03:05:50 +0900
+Date =2010年9月10日星期五 3点05分50秒 JST
+
+同样的方法有如下初始化方式：
+
+-(id)initWithFormat:(NSString 8)format
+		     locale:(NSDictionary *)dictionary ,…
+
+参数dictionary可按如下方式指定当前本地信息
+
+id default =[NSUserDefaults standardUserDefaults];
+id dic=[default dictionaryRepresentation];
+str=[[NSString alloc] initWithFormat:@“Date=%@” locale:dic ,date];
+
+用户默认信息保存在字典变量dic中，其中包含了语言相关的各种设定，这气势就是本地化的功能，此时，变量str中存储的字符串与使用localizedStringWithFormat：时是同样的，NSArray、NSDictionary等包含descriptionWithLocale：方法，该方法的参数也可以使用同样的方式指定
+本地化相关的详细信息，请见参考文档“Locals Programming Guide”等
+
+专栏：消息内的语序
+
+用中文表示英语消息时，因为语序不同所以会费些功夫，此时，可以利用printf（）函数或NSS听日难过方法等的格式可以指定的特殊书写方式
+通常，格式字符串内的格式符（%s等）可以与后面的参数依次对应，通过在格式符“%”后指定“数字”+“\$”就可以将数字指定顺序的参数，在该位置处发生变换，例如，下面的printf就会输出“Good：100”
+
+printf(“%2\$s: %1\$d\n”,100,”Good”);
+
+使用面向中文的Localizable.strings文件按照如下方式书写时，就可以将该字符串作为格式字符串使用，并使用中文的语序（像“文件0012.txt正在处理”那样）来表示，虽然不是万能的，但是灵活性很高
+
+“%@ file %04d.txt” =“文件 %2\$04d.txt %1\$@”;
+
+6、模块的动态加载
+
+此章节将介绍程序的模块在执行中时如何实现加载的，该功能无法在iOS中使用，尽在Mac OS X中可以使用
+
+6.1可加载束
+
+程序内使用的类或范畴中，将当前不使用或可能不使用的模块加载在执行文件之外的其他文件中，并在必要时动态加载，这样就可以加速程序的启动，或者生成限定了功能的程序版本
+而且，通过实现决定要加载的模块形式，并生成有别于程序的模块，就可以为程序添加各种各样的功能，这就是插件（plug-in）
+在执行文件外创建并动态加载的模块通常会以可加载束（loadable bundle）的格式被保存在文件中，可加载束有与应用相同的目录结构，一个可加载束中保存着多个类和范畴的代码，可加载束作为资源保存在应用束内，也可以保存在外部，然而，加载方和被加载方仅有一个时都不能使用垃圾回收，如果使用引用计数管理方式，可以采用手动方式和与ARC混合的方式（见6.1节）
+比起手动创建，可加载束一般采用开发工具Xcode来创建，不管哪种方式，都需要说明使用可加载束的应用的概况
+
+6.2使用可加载束的程序
+
+假设存在一个由类A、B、C、D以及主函数组成的应用，将主函数和类AB链接到执行文件中，将类C和类D当作一个可加载束（图16-3）
+在执行文件一方，类A、B可自由使用，但是使用类C、D的代码不能写入到程序内，具体来说，代码中不能有显示类名的类对象，但是，用类C、D定义的消息可以自由发送，这是因为，在引用类对象时，如果该类代码时必要的，那么消息选择器所对应的具体方法的确定就被推迟到了执行时进行
+￼
+
+在类CD方面，不仅可以使用类C、D，也可以使用类A、B的代码，因为即使加载的代码中包含未解决符号（类名或函数名）但只要在加载时能解决也就可以执行
+简便起见，假设类C、D的可加载束被保存为应用束的源文件，使用CandD.bundle作为其名字，在执行文件方加载该可加载束取得类C的类对象时，可以先取得CandD.bundle对应的束对象，然后对该对象适用classNamed：方法
+
+-(Class)classNamed:(NSString *)classNamed
+	返回一个类对象，他包含参数className指定的类名，束的执行代码尚未加载时，该方法会加载这个代码，不能加载指定的类时，返回nil
+
+加载某个类代码时，他的可加载束内包含的其他代码也会同时被加载到内容中，所以，仅加载类C，内存中就会存在类D的代码，即使类C在内部使用了类D，也没有必要显式加载类D
+当知道所加载的模块内的类名时，可以使用下面的函数指定
+
+Class NSClassFromString(NSString *aClassName);
+	参数aClassName指定了类名，返回持有该类名的类对象，类尚未加载时返回nil
+
+类或范畴被动态加载时，如果类中定义了方法load，那么就可以自动执行，据此，加载后就可以执行任何初始化设置，这就是NSObject声明的方法，由于在某个类的load方法启动前，该超类的load方法就已经被调用，所以只需要写和该类相关的动作代码
+
++(void)load
+
+下面，举例说明从执行文件方面加载可加载束的代码，可以看出，除字符串外，都没有使用类名C
+
+static Class classC = Nil;
+
+if(classC ==Nil){
+	NSBundle *bundle,*module;
+	NSString *path;
+	bundle=[NSBundle mainBundle];
+	path =[bundle pathForResource:@“CandD” ofType: @“bundle”];
+	module =[NSBundle bundleWithPath:path];
+	if(module ==nil ) /*ERROR*/
+		return nil;
+	classC=[module classNamed:@“C”];
+}
+return [[[classC alloc] init] autorelease];
+
+可加载束内有时会包含图像、文本及本地化的文件等，未来使用这些文件，被动态加载的类需要知道自己被哪个束所包含，为此，可以使用如下的类方法
+
++(NSBundle *)bundleForClass :(Class) aClass
+	参数啊 aClass使用被动态加载的类来返回包含该类的可加载束所对应的束
+
+6.3插件概述
+
+插件就是在程序加载过程中被动态追加的提供附加功能的模块，例如，为了能够读入不能被标准功能处理的数据文件，就可以通过插件来实现，此时，假设存在可读入新格式文件的类，并准备了使用这个类来处理文件的结构，那么只要能对应各种格式的文件开发出多种插件，就可以在不改变程序本身的情况下增加新的功能
+在ObjectiveC编程中，插件也可以作为可加载束来实现，与程序中预先准备的代码不同，程序执行时并不一定需要插件，但是，一个程序可以同时加载多个插件，插件应该被定义为独立性高的模块，这样，无论是谁，只要遵从此特性，就都能生成新插件
+插件与构成程序的可加载束不同，不能提前知道代码中包含的类名，为此，插件要使用如下方法加载代码
+
+-(Class) principalClass
+	返回可加载束的主要类（principal class）的类对象，必要时加载代码，不能加载时返回Nil
+
+主要类时插件中包含的一个类，在可加载束的信息文件（info.plist）中为键NSPrincipalClass（表16-2）的值，也是链接代码时最先出现的类，由于使用该类的插件已经开始执行，所以必须要决定哪个类是主要类
+
+Mac OS X的屏幕保护程序在/System/Library/Screen Savers/ 或 ～/Library/Screen Savers/目录中，并被保存成后缀名为“saver”的文件，这实际上就是可加载束，Mac os x中有ScreenSaver框架，将其中定义的类ScreenSaverView的子类作为主要类生成可加载束后，就可以作为屏幕储存器进行工作，这就是典型的插件例子
+
+
+    """},
 ];
