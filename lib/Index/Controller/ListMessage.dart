@@ -7137,4 +7137,310 @@ int main(int argc,char *argv[]){
 
 
     """},
+  {'title' : '第十八章（2）' , 'message' : """
+3、异常的发生和传播
+
+3.1异常的传播
+
+异常处理的语法通常可以和其他控制语句组合，也可以潜入到其他语句中使用，而且，异常处理语法块内调用的方法或函数有时也包含异常处理语法，也就是说，伴随着程序的执行，某个异常处理域中可能还会有其他异常处理在执行，异常句柄中也可能再次发生其他异常
+只使用@catch块不能结束口歌异常处理，为了委托外部异常句柄来处理，有时候就需要在@catch块内故意抛出异常，像这样，为保证异常的正常处理，被调用方向调用有序传递异常的过程，称为异常传播（propagation）任何异常句柄，帮不能被合适处理活在异常处理域外部发生一行时，最终都会由未捕获异常句柄来处理
+
+3.2自己触发异常
+
+如前所述，向异常对象发送raise消息可以抛异常，但是，实际上使用下面的类NSException的方法会更加容易
+
++(void)raise:(NSString *)name
+         format:(NSString *)format,…
+	将异常名及原因保存成信息并创建临时实例，直接产生异常
+	原因由printf（）样式的格式字符串，以及用逗号分割的任意个参数构成，用户字典为nil
+
+该方法及其他产生异常的方法的相关介绍，请参考NSException的参考文档
+也可以自定义异常名柄产生新型的异常，此时，必须起一个可以和其他异常相区别的名字，异常名的添加方法请参考附录C
+
+3.3用@throw语法产生异常
+
+产生异常一般使用@throw语法，语法格式如下所示，object部分中可以指定任何对象，将@throw方法应用于NSException实例，同发送raise消息是一样的
+
+语法：产生异常
+
+@throw object;
+
+即便@catch块内没有参数也可以使用@throw，此时@catch块捕捉的异常对象就被视为参数，同传入的参数效果一样，使用该写法，能够更加方便地记述捕捉到的异常传播处理
+将NSException以外的普通对象指定为@throw参数也可以产生异常，在捕获这样的异常时，@catch语法中必须要指明该对象的类型，如果对象类型不明确，那么使用id类型后，结果就讲捕捉包含NSException在内的所有异常
+@catch块可以被书写多个，但是必须要注意他们的顺序，这是因为，根据书写顺序能够得知用@throw产生异常时使用的对象和哪个@cathch块参数一致，例如下面的例子，MyClassA是MyClassB的超类，object是其中一个类的实例，这时异常一定会被1的@catch块捕捉到，而2不会捕捉到，此外，如果将3的@catch块写在1和2的上方，则异常只能被3的块捕捉到
+
+@try{
+	….;
+	@throw object;
+}
+@catch(MyClassA *ex){ //1
+	…
+}
+@catch(MyClassB *ex){//2
+	…
+}
+@catch(id ex){ //3
+	…
+}
+
+3.4@cathch的特殊语法
+
+@catch 参数除了上面介绍的书写方法之外，也可以采用下面的方式书写，即括号内不写出具体参数，而是写三个点号
+
+@catch(…){
+	/*异常句柄*/
+}
+
+在需要捕捉异常而不需要知道异常内容的情况下，经常会使用该写法，如果存在其他的@catch块，则必须将其书写为最后的块，块内@throw不指定参数，就能传播异常
+
+3.5异常传播和@finally
+
+@catch块内发生异常时（或传播）或者不存在可以捕捉发生的异常的@catch块时，通常就会直接将处理移交给外部的异常句柄来执行，但如果有2finally块，那么在外侧异常句柄移交处理前，2finally块的内容将先被执行，在没发生异常时，@finally块会在@try块之后执行，而当异常不想外侧传播时，@finally块则必须紧接着@catch块执行，所以，这里就要书写实例释放或文件关闭等必须要执行的后处理（图18-2）如果不捕捉异常而只想执行后处理，也可以不写@catch，只写@try和@finally，此时，异常发生后@finally块就会被立刻执行（图18-3）
+￼
+
+
+3.6异常处理程序的注意点
+
+（1、递归方法调用内发生异常
+N重递归方法调用（或函数调用）中发生异常时，处理有时就会跳过内侧的方法二转移到外侧的异常句柄中进行（图18-4），此时，在被跳过的方法中，有些处理就可能会被非正常终止，例如，为了释放对象/对象不被释放掉二斤小的处理可能稍微结束，或者文件或通信相关的后处理没有得到执行等等
+所以，当程序使用异常处理时，异常发生源，异常句柄及可能因异常而为导致被中断的方法调用都需要我们小心应对，在图18-4中，无论是方法C还是方法A和方法B，如果处理被中断时必须进行后处理，那么就要在@try中加入方法调用，并在@catch或@finallu中写后处理代码
+￼
+（2、引用计数管理和异常
+使用引用计数的内存管理方式时，如果因为异常的发生二将处理交给了异常句柄，那么就不能保证这期间使用的对象能被正确释放，手动的计数管理方式和ARC也都一样，使用ARC时，还存在弱访问的变量不能清零的问题
+因此，我们可以这么说，在ObjectiveC中， 写代码时不能一使用异常处理机制为前提
+
+（3、关于C语言中的全局跳转函数
+C语言中有两个函数setjmp（）和longjmp（）他们都可以从函数调用的深层递归中返回，但是，由于这里的异常处理机制在实现时使用了这些功能，所以异常处理机制流程和这些跳转函数不可以同时使用
+ObjectiveC语言中组合使用C语言的函数时，要确保setjpm（）和longjmp（）的组合只在C语言的流程内结束，这点请注意
+
+4、断言
+
+4.1断言是什么
+
+出于调试的目的，有时需要产看程序必须满足的制约条件是否被破坏了，例如，在某个方法执行前，变量x的值必须为零、此类条件的组合不应该发生等等
+像这样，在程序中书写程序必须满足的条件，当条件破坏时就触发异常的结构称为断言（assertion）
+断言使用宏来书写，宏定义在头文件Foundation/NSException.h中
+断言宏的参数中写着必须为真的条件表达式，例如，变量x的值必须比变量y大时，可按如下方式表述（关于宏的内容会在后边介绍）
+
+NSSAssert(x>y , @“Illegal values x(%d) & y(%d)” x,y);
+
+条件为假时，异常NSInternalInconsistencyException就会被处罚，实际上，每个线程中都会自动生成NSAssertionHandler类实例，该对象虽然会触发异常，但基本上不需要对该类直接操作
+编译时定义了NS_BLOCK_ASSERTIONS宏时，断言不会被写入代码，而因为没有写入，所以就会被当作空字符串处理，于是，在编译完成后的程序时，就要在编译器的选项中加入-DNS_BLOCK_ASSERTIONS
+选项D的作用时可以从命令行定义宏，这样使用时，就不需要特意在文件中书写#define了
+
+4.2断言宏
+
+断言宏可以在ObjectiveC方法内以及C函数内使用，断言条件为假时，如果是在函数内，那么就用函数名来表示；而如果是在方法内，那么就用方法名来表示
+首先，只在条件为真时使用的宏有2个：
+
+NSParameterAssert(condition)  ….在方法内使用
+NSCParameterAssert(condition) ….在函数内使用
+
+此外还有宏可以在条件为假时传递触发的异常，以及生成用来说明异常的字符串，他们和printf（）一样，取得格式字符串和对用的参数，使用目前为止的C语言规范尚不可以定义参数个数不确定的宏，而在新的规范中是可以的
+
+在方法内使用
+NSAssert(condition,NSString *description[, arg,…])
+在函数内使用
+NSCAssert(condition,NSString *description[,arg,…])
+
+专栏：包含可变个数的参数的宏
+
+在新的C语言规范中，可以书写包含可变个数的参数的宏
+例如，下面是一个很常见的例子，宏的形参部分中写着“…”，宏的展开部分中可以用__VA_ARGS__来访问该处，然而，在这个例子中，因为参数fmt被“>>>”连接，所以必须要指定确定个数的字符串
+
+#include<stdio.h>
+
+#define Debug(fmt,…) fprintf(stderr,”>>>” fmt,__VA_ARGS__)
+
+int main(void){
+	Debug(“%d\n”,1);
+	Debug(“%d,%d,%d\n”,1,2,3,4);
+	return 0;
+}
+
+5、错误处理
+
+5.1错误处理结构的目的
+
+在一般的流程型程序中，因为不能读入指定文件或输入数据有误等问题不能按照正常流程运行时，利用手写或函数返回值来表示错误发生时常见的方法，但是，单纯靠错误代码和消息，是很难确定错误的原因以及如何处理的
+在Cocoa环境下为了能够统一表示错误的种类和消息，可以使用类NSError，简单地说，NSError持有显示图18-5那样的报警面板时所需的相关信息
+￼
+类NSError实例在Foundation/NSError.h中声明。然而在下面的描述中，NSError实例有时又称为错误对象
+
+5.2表示错误的类NSError的使用方法
+
+NSError实例包含表18-2所示的信息
+￼
+因为这些信息的具体内容因域和错误种类而异，因此这里不再详细说明，但书写确切应对错误的函数时，有必要详细调查一下各个信息，必要的信息在相关差别，API的参考文档及头文件中都要有说明
+错误对象可作为函数或方法返回值返回给调用方，在Cocoa API中，大多数情况下都是用可能发生错误的消息的末尾参数来获得
+例如在NSString中，使用如下方法可使指定的文件内容作为字符串返回（第二个参数enc指定字符串编码）
+
++(id)stringWithContentsOfFile:(NSString *)path
+				 encoding:(NSStringEncoding) enc
+					error:(NSError **)error 
+
+第三个参数error为指针，指向NSError的实例指针变量，也就是指针的指针，此处的使用方法非常简单，如下所示，准备好保存实例的变量，并使用&运算符指向该地址即可，发生指定的文件不存在等错误时，代入错误对象给变量err，如果没有发生错误则不代入对象，因此，为了明确表示错误没有发生，英国养成预先为变量err代入nil的操作习惯
+然而，使用ARC管理内存时，方法内的自动变量地址必须将（NSError **）类型的参数指定为nil（见5.6节）
+
+NSString *path,*contents;
+NSError *err;
+
+…
+err=nil;
+contents =[NSString stringWithContentsOfFile:path encoding:NSShiftJISStringEncoding error:&err];
+if(contents ==nil){
+	NSAlert *alert =[NSAlert alertWithError:err];
+	(void)[alert runModal]; //显示警告窗口
+	break;
+…
+}
+
+这里使用了Application框架的NSAlert类，将错误对象作为参数，即可方便地显示相应的警告窗体，也可以像第17章的示例程序那样，将其作为表单显示在窗体中，但正如简单图像视图的例子那样，NSAppliaction应用必须要考虑到运行回路
+而且，如果应用被本地化为中文，那么警告面板中显示的消息就多为中文，实际上图18-5中的面板的中文时系统显示的，因为要使用到系统预先保存的中文文字，因此如果没有中文资源则使用英语
+方法内部发生错误时，可以先泽直接像调用方返回错误，像框架方法那样使用最后的参数返回错误时，方法如下所示，这里使用ARC时也同样适用
+
+-(NSString *)contentsOf:(NSString *)name error:(NSError **)error{
+	…
+	path=[directory stringByAppendingPathComponent:name];
+	contents =[[NSString alloc]initWithContentsOfURL:path encoding:NSShiftJISStringEncoding error:error];//直接使用传入的指针
+	if(contents ==nil)
+		return nil;
+	…
+}
+
+5.3获取错误对象的信息
+为了获得表示错误内容的消息字符串，可向NSError实例发送下面的消息，没有必要直接访问用户字典或域等
+
+-(NSString *)localizedDescription
+	返回说明错误的字符串，字符串被本地化，不会返回nil，用户字典汇总如果存在NSLocalizedDescriptionKey键的对象，则返回该对象
+-(NSString *)localizedFailureReason
+	显示错误产生的原因，返回本地化的短字符串，有时返回nil，用户字典中如果存在NSLocalizedFailureReasonErrorKey键的对象，则返回该对象
+-(NSString *)localizedRecoverySuggestion
+	显示错误的处理方法或建议，返回本地化的短字符串，有时返回ni，用户字典中如果存在NSLocalizedRecoverySuggestionErrorKey键的对象，则返回该对象
+
+以图18-5的警告面板显示时的情况为例，错误对象在调用上述三个方法时一次返回如下对象
+
+localizedDescription
+…字符串“因为没有合适的访问权限，不能打开文件“work””
+
+localizedFailureReason
+…字符串”没有合适的访问权限“
+
+localizedRecoverySuggestion
+…字符串“显示或变更访问权时，请用“Finder”选择文件，选择“文件”“查看信息””
+
+5.4生成自定义错误对象
+
+与异常相同，自己也可以生成NSError实例，可以使用下面的简易常数类
+
++(id)errorWithDomain:(NSString *)domain
+			     cod:(NSInteger) code
+		      userInfo:(NSDictionary *)dict
+	指定域名、错误代码和用户字典后创建错误对象，用户字典为nil也没有关系，域名必须要指定
+
+典型的错误域名如下所示表18-3:
+￼
+返回新出按键的错误对象时，如果错误原因和上述任一个域相同，就可以直接使用域和错误代码。
+在Mac OS X环境下，用户字典即使为nil，只要指定了域名和错误代码，多数情况下警告面板中也都会显示中文的错误信息
+自定义程序可以创建自己专用的新域名，此时，错误代码和用户字典的内容也西药自己来管理，错误消息及警告面板中显示的按钮标题等信息被一并保存在用户字典中传递，建议将字典中保存的字符串本地化
+用户字典可以自由地登录入口，但为了特定目的，这里有多个键被预先定义为了常数，如表18-4所示，值为显示消息的字符串时，基本上都已经被本地化了
+￼
+
+6、错误反应链
+
+通过将NSError结合应用框架来使用，就可以在GUI环境中灵活滴进行错误处理，核心模块是Mac OS X10.4后引入的错误反应链（error-responder chain）该模块与15.4节中介绍的反应链类似
+下面将简述什么事错误反应链，该功能只在Mac OS X上有效，详情请参考“Error Handling Programming Guide”等文档
+
+6.1错误反应链的结构
+
+当与某组件错误相关的错误发生时，有必要将错误内容发送给用户，或根据用户的指示对错误进行处理（恢复）但是，如果根据错误发生场所来分别进行处理的话，从应用整体来看就会有处理不统一的危险，于是，可以将错误处理规则与GUI组件的层次结构互相对应，这样形成了错误反应链
+正如在介绍反应链时所说的那样，GUI组件大部分时Application框架的NSResponder类的子类，他们在窗体中保持着层次结构，错误反应链和反应链同样，是位于底层的组件指向上层组件的对象（反应链）的连接
+当与某个组件相关的错误发生时，会讲错误对象作为参数将消息presentError：发送给该组件，意识错误对象就会从该组件开始被转发给上层的组件，最终由窗体发送给NSApplication实例，错误提示和恢复被执行（图18-6）
+￼
+
+在错误传送中使用了方法presentError：它是NSResponder实例的方法，将错误发生给错误反应链指向的下一个对象，如果错误恢复成功则返回YES
+
+-(BOOL)presentError:(NSError *)anError
+	
+处理文档的窗口可使用如下方法
+-(void)presentError:(NSError *)error
+   modalForWindow:(NSWindow *)aWindow
+		 delegate:(id)delegate
+didPresentSelector:(SEL)didPresentSelector
+	    contextInfo:(void *)contextInfo
+
+使用该方法时，错误通过指定的窗体表单显示，这里省略使用该方法时的详细情形，下面只简单说明一下presentError：方法
+接收presentError：方法的反应器使用self的错误对象作为参数来调用下面的方法，并将返回的错误对象发送给上层的反应器
+
+-(NSError *)willPresentError:(NSError *)anError
+
+NSResponder的实现中将原样返回该参数，但是NSResponder子类中需要重写该方法，子类中可以访问错误对象参数包含的消息，然后将包含更加详细的错误消息以及恢复所需要的信息的新错误对象返回，然而，willPresentError：方法需要在子类汇总由用户来定制，而presentError：方法不能重写
+同样，Application实例的委托也可以定义下面的方法
+
+-(NSError *)application:(NSApplication *)application
+	     willResentError:(NSError *)error
+	
+6.2错误对象 的更改和恢复
+
+针对发生的错误，有时也可以根据用户的指示来执行恢复，例如，读入的数据形式不正确时，时继续读取还是使用代替数据或终止处理程序，这些都需要根据用户的选择来进行
+此时，可以在香港的组件类中写入willPresentError：方法的实现代码，或者在NSApp委托中定义application：willPresentError：并返回包含恢复所需信息的错误对象
+因为发生错误传递的错误对象以及用户字典时常数对象，所以上述方法必须要返回一个新创建的错误对象，而且，原错误对象使用新错误对象用户字典汇总NSUnderlyingErrorKey键并保存它（表18-4）
+首先，为了让用户选择如何进行恢复，必须按照选择分支的个数来传入按键标题字符串，具体来说，就是想下面的错误对象方法返回字符串数组那样，将数组记录在用户字典中
+
+-(NSArray *)localizedRecoveryOptions
+	将警告面板的按键标题所使用的本地化字符串放入数组中返回，用户字典中如果存在NSLocalizedRecoveryOptionsErrorKey键的对象则返回
+
+包含多个字符串时，第一个字符串在面板的最右侧（默认），然后是右边第二个，按照此顺序排列，也可能会返回nil，此时讲过面板只显示“OK”按键
+当然，为了使用户选择合适的按钮，需要向用户战术确切的说明消息，如上一章所述，或许也需要预先将NSLocalizedDescriptionKey或NSLocalizedRecoverySuggestionErrorKey键的消息字符串在用户字典中重新记录
+
+接着，在取得按键的选择结果后，指定对象来执行恢复处理，该对象就称为恢复尝试对象（recovery attempter）为了能作为下面的错误对象方法的返回值返回，该对象在用户字典中记录
+
+-(id)recoverAttempter
+	返回错误的恢复尝试对象，用户字典中如果存在NSRecoverAttempterErrorKey键的对象则返回如果没有如果则返回nil
+
+恢复尝试对象可以是任意类的实例，但为了进行恢复处理，需要实现下面所示的NSErrorRecoveryAttempting非正式协议的其中任意一个方法，该非正式协议在Foundation/NSError.h中声明
+
+@interface NSObject(NSErrorRecoveryAttempting)
+-(void)attemptRecoveryFromError:(NSError *)error
+				    optionIndex:(NSUInteger)recoveryOptionIndex
+				         delegate:(id)delegate
+		       didRecoverSelector:(SEL)didRecoverSelector
+				    contextInfo:(void *)contextInfo;
+-(BOOL)attemptRecoveryFromError:(NSError *)error
+				       optionIndex:(NSUInteger)recoveryOptionIndex;
+@end
+
+前者主要被用于窗体页的应用，所以此处不做介绍，后者的情况下，表示错误对象和警告面板中用户选择的按键位置的索引会被作为参数传入，该索引与错误对象的用户字典中传入的字符串数组的索引一致，所以可以访问该值并进行相应的处理，恢复成功时返回YES，该返回值也是最初调用的方法presentError：的返回值
+例如，某新错误对象可以选择继续、其他文件、取消这三个选项，返回该对象的方法定义如下所示，因为恢复尝试对象指定了self，所以能够应对选择结果的处理方法必须要在同一个类中定义
+
+-(NSError *)willPresentError:(NSError *)err{
+	NSMutableDictionary *dic;	
+	NSError *nwerr;
+	dic =[NSMutableDictionary dictionaryWithDictionary:[err userInfo]];
+	//将原错误对象的用户字典复制为可变的字典对象
+	[dic setObject:[NSArray arrayWithObjects:
+		NSLocalizedString(@“Continue”,”Continue”),
+		NSLocalizedString(@“Try Other”,”Try Other”),
+		NSLocalizedString(@“Cancel”,”Cancel”),nil] 
+		forKey:NSLocalizedRecoveryOptionsErrorKey];
+	//使其能显示3个按键，并进行本地化
+	[dic setObject:self forKey:NSRecoveryAttempterErrorKey];
+	//指定self为恢复尝试对象
+	[dic setObject:err errorWithDomain:[err domain ] code:[err code] userInfo:dic];
+	//生成新错误对象
+	return nwerr;
+}
+也可以在NSApp委托中实现同样的方法，此时必须要确保通过访问错误代码和用户字典，可以恰当处理各种类型的错误对象
+
+专栏：单元测试
+
+目前，各种软件开发环境中都提供了可以方便地进行单元测试（单体测试）的机制
+单元测试就是在类或方法等单元中确认生成的程序是否正确执行的一种测试，在多数开发环境中，通过在软件开发的同时进行这样的单元测试，就可以在修正程序或添加功能等时机自动执行该测试，因此，该测试不仅能保证程序的质量，对软件的改善（重构）也有不错的效果
+即使是ObjectiveC，使用Xcode的程序开发中也可以实施单元测试，这里主要借助了开源的成果，具体来说就是从Xcode构建OCUnit单元测试并执行，本书中不详细介绍Xcode中的实现方法，只简单地说明一下概要
+单元测试将SenTestingKit框架类SenTestCase的子类定义为工程目标，从子类方法中调用测试操作，并通过使用SenTestKit框架定义的断言来确认是否能够得到期待的结果，如果结果与预想的不同，断言中就会发送错误报告
+关于单元测试的具体实现方法，可以参考“iOS App Development Wordflow Guide（iOS开发向导）”等文档
+
+
+
+    """},
 ];
