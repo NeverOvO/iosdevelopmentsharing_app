@@ -7681,4 +7681,301 @@ static id g=…;
 
 使用@synchronized块时，加锁和解锁必须成对进行，因此可以预防加锁后忘记解锁这种问题的发生，和普通的锁相比，复杂的并行算法的书写会较为复杂，但多数情况下都会使互斥更容易理解
     """},
+  {'title' : '第十九章（2）' , 'message' : """
+3、操作对象和并行处理
+
+3.1新的并行处理程序
+
+Mac OS X10.6及iOS4.0 后，导入了可以使系统全体线程更高效运行，并且使并行处理应用更易开发的架构，称为大中央调度（GCD ，Grand Central Dispatch）
+目前为止，为了提高应用的运行速度和GUI的易用性，程序多采用了多线程，但是，这就需要与线程的创建、同步、共享资源的互斥等相关的知识、观察力、经验及技术，而且代码的调试和功能扩展也存在诸多困难
+在使用GCD的程序中，可以将想要提高处理速度的部分分解为非同步执行的多个任务，并将这些任务放入等待队列（queue）中，虽然必须要指定任务见的依赖关系（前后关系）但却不需要关系线程的创建和调度，然后CPU内核书以及其他应用的要求都会被动态地判断，有系统决定最佳的并行成都和高效的调度方式并执行
+GCD的核心使用C语言写的的系统服务，应用将应该执行的各种任务封装程块对象写入到队列中，通过对比各任务启动线程的代码，该操作可以非常轻量地运行
+为了直接使用GCD的功能，必须要使用C语言函数，然而，在ObjectiveC中，通过用NSOperation类来表示任务，并将其追加到NSOperationQueue类队列中，即可实现并行处理，下面，将蛋说明这些类的使用方法，详细内容请参考“Concurrency Programming Guide”“Grand Central Dispatch（GCD）Reference”等文档
+在下面的说明中，我们将需要执行的任务聚合在一起，称为抽象任务（task）
+
+3.2使用NSOperation的处理概述
+
+和将NSArray实例称为数组对象一样，下面的NSOperation实例也可以称为操作对象（operation object）或简称为操作
+操作对象可以将需要执行的代码和相关数据集成并封装，操作对象通常不是被直接执行吗，而是在等待队列中按顺序调用，线程也不是一直被创建，而是保持一定的数量，并将操作交给空闲线程处理（图19-3）这种线程管理方式称为线程池，在GCD中，线程数由硬件或当前系统的整体负荷等条件来决定，至于各个操作在哪个线程执行以及采取怎样的调度方式等，编程人员则不用关系
+￼
+操作不仅仅可以按照等待队列中的顺序被调用，也可以像“任务A完成后调用任务B”这样指定调用的先后关系，此案死，任务B依赖于任务A，这种关系称为依赖关系（dependency）而且，还可以设定操作的优先权（priority）
+为操作提供了等待队列功能的是NSOperationQueue类，以下将该类的实例称为操作队列（operation queue）或简称为队列，等待队列是一种先入先出的数据结构，也称为FIFO（First in First Out）操作一旦被加入到队列，至于如何执行，就要任凭系统来调度，但是，加入到队列的操作在执行之前也可以取消
+下面我们来看一下如何将NSOperation类加入队列并执行任务，不过，在此之前，这里先介绍一下啊其他操作，操作对象也可以直接调用start方法来执行任务，但是为了能并行执行任务，标准做法实在start内创建线程，本书中不在介绍按照这种方式使用操作对象的方法，关于操作的定义方法等详细内容，请参考NSOperation类的参考文档或“Concurrency Programming Guide”
+
+3.3NSOperation和NSOperationQueue的简单用法
+NSOperation提供了处理任务的功能，他本事又是抽象类，所以就需要先定义子类，然后再在子类汇总定义必要的处理，但是，由于操作对象可以被多个线程同时访问，因此子类方法必须是线程安全的，NSOperation实例在头文件Foundation/NSOperation.h中定义
+NSOperation子类必须将要执行的任务写入到下面的main方法中，由于在NSOpaeration中定义的方法不发挥任何作用，所以并没有必须调用super
+
+-(void)main
+
+NSOperation子类至少需要包含main方法，此方法应按照如下方式定义，利用垃圾回收机制时不需要自动释放池，只需要启动垃圾回收器即可，另外，@catch后的括号内并不表达省略的意思，而是就应该写成…（见18.3节）
+
+-(void)main{
+	try{
+		@autoreleasepool{
+			//这里书写任务中需要进行的处理
+		}
+	}
+	catch(…){
+	//再次抛出异常，不能使用@throw等向外部传播	
+	}
+}
+
+NSOperation子类可以根据需要定义初始化器，由于NSOperation类指定的初始化器为init，因此子类的初始化器一定会调用init
+NSOperationQueue的使用方法也很简单，创建实例后，将操作对象加入到队列中即可，NSOperationQueue接口在头文件NSOperation.h中定义，初始化器使用init
+可以使用下面的方法将操作对象添加到队列
+
+-(void)addOperation:(NSOperation *)operation
+
+使用引用计数方式（手动或ARC）进行内存管理时，程序会一直保持着添加到队列中的操作对象，使用垃圾回收时，因为队列需要访问操作对象，所以知道执行终止操作对象才会被释放
+创建的队列即使被多个线程同时操作也不会出任何问题，因此并不需要为互斥加锁，或者用@synchronized开来保护
+一个程序中可以创建多个队列，到那时，一个操作对象一次只能加入到一个队列中，而且，一执行完或正在执行的操作对象都不可以加入到队列中，否则就会引发异常
+操作对象一旦加入到队列，就不能从队列中消除，如果不想执行该任务，则可以取消该处理，稍后会说明取消的方法
+
+3.4等待至聚合任务终止
+
+虽然无法知道任务按照什么样的顺序执行，但在队列中添加的操作全部完成之前的这段时间通过使用NSOperationQueue的下述方法，就可以一直锁住当前线程（使之等待）这样一来，在聚合任务终止后就可以简单地进行下一个任务
+
+-(void)waitUntilAllOperationsAreFinished
+	到接收器队列中添加的操作全部执行完为止，一直加锁调用该函数的线程，队列为空时，没有要执行的任务，该方法立即返回
+	调用该方法的线程在被锁期间，接收器队列会继续执行，其他线程也可以添加操作
+-(void)addOperations:(NSArray *)ops
+       waitUntilFinished:(BOOL)wait
+	将数组ops中的操作对象添加到接收器队列中，参数wait为YES时，到指定操作执行完为止，调用该方法的线程一直处于被锁状态
+	使用引用计数管理方式时，添加的操作对象被保存在队列中，二数组ops则不被保存
+
+3.5使用操作对象的简单例子
+
+代码清单19-1中展示了一个简单的程序例子（使用ARC）该程序中定义了操作对象MyOperation类，任务内容时等待一个随机事件将任务变好添加到MyList数组中，线程执行各任务时没回分别封袋不同的时间，因此MyList中的任务编号理应不会按顺序排列，main函数会常见Tasks个操作对象并将其按顺序添加到队列中
+队列保存操作对象，知道任务终止后操作对象才被释放，在dealloc方法中，尝试使用NSLog来输出信息
+而且，可以使用waitUntilAllOperationsAreFinished方法来查看是否所有线程都终止了，但此时操作对象会被同时释放，所以很难知道任务终止的顺序，于是，这里设置为了等待2.0秒（在某些环境下着需要等待更长时间，否则所有任务或许就不能都结束）
+
+代码清单19-1 NSOperation的使用示例
+
+#import <Foundation/Foundation.h> //使用ARC
+#import <stdio.h>
+#import <stdlib.h>
+#import <unistd.h>
+
+NSMutableArray *MyList;
+
+@interface MyOperation : NSOperation{
+    int number; //各任务号
+    NSTimeInterval interval;//时间间隔
+}
+-(id)initWithNum:(int)sn;
+-(void)main;
+
+@end
+
+@implementation MyOperation
+
+-(id)initWithNum:(int)sn{
+    if((self =[super init]) !=nil){
+        number =sn;
+        interval =(double)(random() &0x7f) /256.0;
+    }//生成少于0.5秒的随机值
+    return self;
+}
+-(void)dealloc{ //释放时打印信息
+    NSLog(@"Release:%d",number);
+}
+-(void)main{
+    @try{
+        @autoreleasepool {
+            NSNumber *obj =[NSNumber numberWithInt:number];
+            [NSThread sleepForTimeInterval:interval];//等待一会
+            @synchronized (MyList) {
+                [MyList addObject:obj];
+            }
+        }
+    }
+    @catch(...){ /*只捕捉异常，不做任何操作*/}
+}
+@end
+
+int main(void){
+    const int Tasks=10;
+    srandom((unsigned)getpid());//随机数种子
+    
+    @autoreleasepool {
+        int i;
+        NSOperationQueue *queque =[[NSOperationQueue alloc]init];
+        MyList =[[NSMutableArray alloc]init];
+        
+        for(i =0;i<Tasks ;i++){ //创建操作并将其添加到队列中
+            NSOperation *opr =[[MyOperation alloc]initWithNum:i];
+            [queque addOperation:opr];
+        }
+        [NSThread sleepForTimeInterval:2.0];//等待终止
+        for (id obj in MyList) {
+            printf("%d",[obj intValue]);
+        }
+        printf("\n");
+    }
+    return 0;
+}
+
+运行结果：
+￼
+
+该程序每次运行时结果都不一样，例如，可以得到上面的结果（包括NSLog（）打印的开始部分）
+
+最后一行为main函数的输出结果，可以看出，基本上是按照任务在数组中加入号的顺序来释放的操作对象，另外，在NSLog的输出中，括号内的数组为进程id和线程号，可见，不仅有多个线程被创建，有些线程还承担着多个任务的处理
+
+3.6NSInvocationOperation的使用方法
+
+在Cocoa框架中，NSOperation的子类包括NSInvocationOperation和NSBlockOperation，使用这些类时，即使不定义子类也能创建操作对象
+这里先简单介绍一下NSInvocationOperation
+NSInvocationOperation使用如下初始化器，返回向目标对象发送消息的任务操作对象，当任务内容已经被作为方法定义时，该方法有效
+
+-(id)initWithTarget:(id)target
+		selector:(SEL)sel
+		    object:(id)arg
+	初始化示例，是参数选择器sel向target发送消息，可以指定包含一个参数的选择器，并指定参数arg，选择器没有包含参数时，向arg传入nil
+	使用引用计数管理方式时，target和arg会通过调用初始化器被保存，并在接收器的操作被释放时被release，而且，该操作会在创建自动释放池后执行任务
+
+3.7NSBlockOperation的使用方法
+
+NSBlockOperation使用块对象构造任务，使用下面的类方法可以创建临时示例
+
++(id)blockOperationWithBlock:(void (^)(void))block
+	返回以参数中指定的块对象为任务的临时操作对象，参数块对象被生成复制，并在操作对象内保存，使用引用计数管理方法时，该操作会在创建自动释放池后执行任务
+
+使用该方法，可以将代码清单19-1的程序修正为代码清单19-2的程序，这里只显示了对应的循环部分，如果任务很简单，使用NSBlockOperation和块对象就可以紧凑地书写，另外，虽然在循环中使用了块对象，但由于方法blockOperationWithBlock：会生成参数的复制，因此包含各种不同值的块对象就会被生成
+
+代码清单19-2 NSBlockOperation的使用示例
+
+for(i =0;i<Tasks ;i++){ //创建操作并将其添加到队列中
+            NSBlockOperation *opr;
+            NSTimeInterval interval =(double)(random()&0x7f)/256.0;
+            opr =[NSBlockOperation blockOperationWithBlock:^{
+                NSNumber *obj =[NSNumber numberWithInt:i];
+                                [NSThread sleepForTimeInterval:interval];
+                                @synchronized(MyList){
+                                    [MyList addObject:obj];
+                                }}];
+            [queue addOperation:opr];
+        }
+        [queue waitUntilAllOperationsAreFinished];//等待终止
+
+由于没有包含类似于代码清单19-1的dealloc方法的部分，因此，执行结果如下所示，只有一行输出
+￼
+然而，通过使用NSOperationQueue的addOperationWithBlock：方法，就可以在一次调用中完成复制块对象，创建操作对象，并将其追加到队列中这一系列操作
+
+3.8NSBlockOperation中添加多个块对象
+
+NSBlockOperation中包含数组对象，里面保存着多个块对象，而且这些块对象可以被当作任务执行，当有多个块对象时（如果可能的话）这些块对象就会被并行执行，下面是与数组相关的方法
+
+-(void)addExecutionBlock:(void (^)(void))block
+	将参数块追加到接收器数组中
+-(NSArray *)executionBlocks
+	返回接收器包含的块对象数组
+
+NSBlockOperation是NSOperation的子类，可以使用init初始化，初始化后，块对象数组中没有任何元素
+
+3.9设置任务间的依赖
+
+当存在多个任务时，有时我们会需要指定一定的顺序关系，在执行某个任务后继续执行另一个任务，比如，当其他任务需要使用某个任务的处理结果时，或绘图处理的前景和背景有关联时，都需要这样的顺序关系，当然，如果所有任务的处理顺序已经确定，那么也就没有并行处理的必要了。在多任务中某些任务有依赖关系，二其他任务可以并行处理，这也是有效的
+对莫哥操作对象A来说，可以设定比A更靠前执行的操作对象B，因此，可以表示为任务A依赖于任务B，在队列中加入的多个操作对象中，可以执行的操作被一个接一个地处理，而有依赖关系的情况下，则在前者处理结束后再执行后面的操作
+然而，如果有多个队列，也可以将有依赖关系的操作分别加入多个队列中
+NSOperation中定义的设置依赖关系及解除关系的方法如下：
+
+-(void)addDependency:(NSOperation *)operation
+	将接收器操作依赖的，也就是比较接收器先执行的操作指定为参数
+-(void)removeDependency:(NSOperation *)operation
+	从接收器中删除注册的依赖操作
+-(NSArray *)dependencies
+	创建新数组，接收器保存依赖操作并返回，数组中也包括已经终止的操作，不包含依赖操作时，返回空数组
+
+修改代码清单19-1的程序，将10个操作设定为如图19-4所示的依赖关系
+￼
+在该图中，例如操作2必须先于操作0执行，这些都使用箭头表示了出来，操作4必须在操作0和操作5都执行完毕后才可以执行，操作1、7、8、9之间没有依赖关系
+该依赖关系中，箭头不能形成闭环，也就是说，可以沿箭头执行的方向返回到原点的依赖关系时被禁止的，闭环关系中的所有操作都不能执行，因此处理也不能终止
+代码清单19-3展示了代码清单19-1中发生改变的部分代码
+
+代码清单19-3设置操作中的依赖关系并执行的例子
+
+  NSOperation *oprs[Tasks];
+        for(i=0;i<Tasks;i++)
+            oprs[i] =[[MyOperation alloc]initWithNum:i];
+        [oprs[0] addDependency:oprs[2]];//操作0在操作2之后
+        [oprs[5] addDependency:oprs[2]];
+        [oprs[4] addDependency:oprs[0]];
+        [oprs[4] addDependency:oprs[5]];
+        [oprs[3] addDependency:oprs[6]];
+        for(i=0;i<Tasks;i++)
+            [queue addOperation:oprs[i]];
+        [NSThread sleepForTimeInterval:3.0];//等待终止
+
+结果：
+￼
+图19-5中显示了执行结果，因为使用了随机数，所以每次的执行结果都不一样，这里提取了3次执行结果，设置了依赖关系的操作的执行顺序如箭头所示，可以看出，有依赖关系的两个操作间还有其他操作被执行，但无论如何，所执行的执行顺序都没有变
+￼
+
+
+3.10任务的优先级设置
+
+在多个任务中，既有需要比其他任务优先执行的任务，也有非优先执行的任务，很多时候我们都会需要进行这样的设定，此时可以使用NSOperation提供的优先级的设定方法
+但是，并不能保证高优先级的任务一定会先于低优先级的任务执行
+
+-(void)setQueuePriority:(NSOperationQueuePriority)priority
+	为接收器的操作指定优先级
+-(NSOperationQueuePriority)queuePriority
+	返回接收器的优先级
+
+这里，表示优先级的NSOperationQueuePriority为整数类型，使用按如下方式定义的常数，即使指定其他整数值，也会被修改为最接近的常数，因此是无效的
+
+enum{
+	NSOperationQueuePriorityVeryLow =-8,//最低优先级
+	NSOperationQueuePriorityLow =-4,
+	NSOperationQueuePriorityNormal =0,//一般优先级
+	NSOperationQueuePriorityHigh =4,
+	NSOperationQueuePriorityVeyHigh =8 //最高优先级
+};
+typedef NSInteger NSOperationQueuePriority;
+
+3.11设定最大并行任务数
+
+操作队列可以同时启动多个任务的情况下，可以设定最多可以并行执行的任务数，NSOperationQueue提供了下面的方法
+
+-(void)setMaxConcurrentOperationCount:(NSInteger)count
+	设定可以并行执行的最大操作数
+-(NSInteger)maxConcurrentOperationCount
+	返回可以并行执行
+
+一般情况下，任务的并行执行可以根据系统状况判断，选择该状态时，指定常数值NSOperationQueueDefaultMaxConcurrentOperationCount该值为确定值（实际值为-1）
+即使指定了最小值为1.也不一定会按照加入到队列时的顺序来处理任务，而且，指定较大数字也不会使执行更高速
+
+3.12终止任务
+
+下面向大家介绍一下如何取消对了中的操作对象的任务，NSOperation有如下方法：
+
+-(void)cancel
+	使下面的方法isCancelled返回YES
+-(BOOL)isCancelled
+	接收上面的cancel方法后返回YES，否则返回NO，任务正在执行时或执行终止后也可以返回YES
+
+而且，NSOperationQueue类中也有如下方法
+
+-(void)cancelAllOperations
+	此时向队列中的所有操作对象发送cancel消息
+
+操作对象即使接收cancel，也并不代表插入或异常这样的特殊处理或悲执行
+isCancelled在任务执行前接收cancel并返回YES，操作对象将被解除执行
+在任务执行的过程中接收到cancel时，为了转移到中断处理，任务内容必须如下方式编程实现，具体来说，程序在main方法的开头以及在处理途中的各个重要地方检查自己的isCancelled的值，如果返回YES则进行中断处理
+
+3.13设置队列调度为中断状态
+
+也可以临时停止某个操作队列的执行，来停止执行队列中的操作，停止的队列也可以再回复，中断和解除的方法在类NSOperationQueue中定义
+
+-(void)setSuspended:(BOOL)suspend
+	将接收器的队列变成中断状态或者解除队列的行为，参数指定为YES时时中断状态，进入中断状态后，停止从新的队列中取出操作并执行
+	即使为中断状态，也可以向队列中添加操作，而且即使处于中断状态，也不会停止正在执行的任务
+
+-(BOOL)isSuspended
+	接收器队列如果处于中断状态则返回YES，否则返回NO
+
+
+    """},
 ];
