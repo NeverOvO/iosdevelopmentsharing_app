@@ -7978,4 +7978,264 @@ isCancelled在任务执行前接收cancel并返回YES，操作对象将被解除
 
 
     """},
+  {'title' : '第十九章（3）' , 'message' : """
+4、并行处理的示例程序
+
+4.1程序概念
+
+这里将介绍在程序中使用操作对象的例子
+我们在第17章中创建了简单的视图图形，其中增加了一览显示指定目录中包含的图像文件的功能。双击一览显示的小图像，就可以显示出普通大小的图像，原来的图像视图的部分保持不变，这里，将新应用的名字定为BrowsingViewer，使用ARC来管理内存
+￼
+新对象的关系如图19-6所示，这里没有像以往那样放置MyViewerCtrl的实例，而是放置了他的子类BrowsingViewerCtrl，该对象可以指定希望一览显示的目录，并创建BrowsingWinCtrl实例。BrowsingWinCtrl实例会显示一个窗体，来显示图像文件一览，为显示图像，操作对象使用DrawOperation类的实例，其他方面，main函数或信息文件等本地化资源中，有些部分必须改变
+下面仅仅展示了其中的部分源码，这是因为有关窗体和图像显示的部分大都涉及尺寸和坐标计算，和本例的并行处理没有直接关系
+
+4.2类BrowsingViewerCtrl
+代码清单19-4是类BrowsingViewerCtrl的实例，该类也是MyViewerCtrl的子类，因此只是新增了方法openDirectory：在指定目录时，该方法会显示打开面板
+
+代码清单19-4 BrowsingViewerCtrl的接口部分
+
+#import "MyViewerCtrl.h"
+
+@interface BrowsingViewerCtrl : MyViewerCtrl
+-(void)openDirectory:(id)sender;
+@end
+
+代码清单19-5为类BrowsingViewerCtrl的实现部分，显示打开面板之前的内容都比较简单，记述关闭面板后的处理的块文法却很长
+在块中，使用类NSFileManager将表示指定目录内的文件的URL对象保存在数组files中，由于数组types中加入了系统可处理的图像文件的后缀名，因此，利用这一点，就可以只将数组files内包含图像文件后缀名的URL放入到可变数组images中，最后，创建类BrowsingWinCtrl实例并传入数组，BrowsingWinCtrl是一览显示图像的窗体管理类
+
+代码清单19-5 BrowsingViewerCtrl的实现部分
+
+#import "BrowsingViewerCtrl.h"
+#import <Cocoa/Cocoa.h>
+#import "BrowsingWinCtrl.h"
+
+@implementation BrowsingViewerCtrl
+
+-(void)openDirectory:(id)sender{
+    NSOpenPanel *oPanel =[NSOpenPanel openPanel];//打开面板
+    [oPanel setAllowsMultipleSelection:NO];//不能选择多个文件
+    [oPanel setCanChooseDirectories:YES];//可以选择目录
+    [oPanel beginWithCompletionHandler:^(NSInteger result){
+        NSArray *files,*types;
+        if(result !=NSModalResponseOK)
+            return;
+        files =[[NSFileManager defaultManager]
+                contentsOfDirectoryAtURL:[oPanel URL] includingPropertiesForKeys:NULL options:NSDirectoryEnumerationSkipsHiddenFiles error:NULL];
+        //将选中目录中的文件的URL放入数组中
+        types =[NSImage imageTypes];//图像文件后缀名
+        NSMutableArray *images = [NSMutableArray array];
+        for(NSURL *url in files){
+            if([types containsObject:[url pathExtension]])
+                [images addObject:url];
+        }//只将包含图像文件后缀名的URL保存在数组images中
+        if([images count] >0)
+            (void)[[BrowsingWinCtrl alloc]initWithURLs:images];
+    }];
+}
+
+@end
+
+4.3类BrowsingWinCtrl
+
+类BrowsingWInCtrl的接口部分如代码清单19-6所示，只增加初始化器，并指定窗体委托的协议
+
+代码清单19-6 BrowsingWinCtrl的接口部分
+
+#import <Cocoa/Cocoa.h>
+@interface BrowsingWinCtrl :NSObject <NSWindowDelegate>
+-(id)initWithURLs:(NSArray *)content;
+@end
+
+代码清单19-7是实现部分，所有实现变量都在这里，由于图像的显示使用NSOperation因此这里包含了队列实例变量，配置图像的视图使用docView来访问，但由于时window内部包含的组件，因此使用弱引用
+类BrowsingWinCtrl在所管理的窗口中配置图像的情形如图19-7所示，图像缩小、横竖大小都需要在PicSize范围内，图像仅以PicMargin为间隔排列，PicSize、PicMargin是在BrowsingWinCtrl.m中定义的宏，hpics为窗体中显示的行数，wpics为每行的图像数据，图像较多的情况下可以使用滚动条来查看全体图像，此时全体行数为rows，从应该显示的图像个数，到横向纵向各排列多少个图像，都由方法fixDimensions：决定
+￼
+方法showImages创建用于显示各图像的操作对象，然后将其加入到队列中，操作对象被定义为类DrawOperation初始化时传入URL、显示区域（视图）、显示位置的坐标
+方法initWithURLs：为初始化器，参数为保存图像文件URL的数组，根据该数组的元素个数决定窗体的尺寸，并设定绘图用的视图后显示窗体，最后使用操作对象显示图像
+类定义中的一大部分都被用在了计算窗体尺寸和图像的配置方法
+
+代码清单19-7 BrowsingWinCtrl的实现部分
+
+#import "BrowsingViewerCtrl.h"
+#import "BrowsingWinCtrl.h"
+#import "DrawOperation.h"
+
+#define PicSize 200
+#define PicMargin 6
+#define PreviewSize (PicSize + PicMargin)
+#define ScreenMargin 48
+
+@implementation BrowsingWinCtrl{
+    NSArray  *imageURLs;//文件URL
+    NSWindow *window;//用于一览显示的窗体
+    __weak NSView * docview;//图像配置视图
+    NSOperationQueue *queue;//操作队列
+    int wpics,hpics,rows;//横向和c纵向的图像个数
+}
+/*Local Method:决定横向和纵向的图像个数*/
+-(void)fixDimensions:(int)count{
+    /*省略详细内容，窗体中纵向的图像数为hpics，横向的图像数为wpics
+        使用滚动条，全体行数为rows*/
+}
+/*Local Method:c创建操作对象来显示图像*/
+-(void)showImages{
+    int i,count;
+    int x,y;
+    NSPoint loc;//各个图像左下角的坐标
+    CGFloat hgt;//表示域的纵向长度
+    DrawOperation *op;
+    
+    count =[imageURLs count];//图像文件的个数
+    hgt = [docview frame].size.height;//表示域的纵向长度
+    for(i =0;i<count;i++){
+        y=i/wpics;
+        x=i-(y*wpics);
+        loc.x = (x * PreviewSize);
+        loc.y =hgt - (y*PreviewSize) -PicSize;//左下角为原点
+        op=[[DrawOperation alloc] initWithURL:[imageURLs objectAtIndex:i] parentView:docview at:loc];
+        [queue addOperation:op];
+    }
+}
+-(id)initWithURLs:(NSArray *)content{
+    NSScrollView *scview;
+    NSClipView *clip;
+    NSString *pathname;
+    BOOL withScroller;
+    NSRect contrect,viewrect;
+    NSUInteger wstyle =(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable);
+    if((self = [super init]) ==nil)
+        return nil;
+    [DrawOperation setPictureSize:PicSize];//设置图像大小
+    queue=[[NSOperationQueue alloc]init];//初始化队列
+    [queue setMaxConcurrentOperationCount:10];//设置最大数
+    imageURLs =content; //  保存URL的数组
+    [self fixDimensions:[imageURLs count]];//确定纵向的图像数
+    /*省略 确定q窗体和绘图区域的大小，初始化设定*/
+    [window makeKeyAndOrderFront:self];//显示窗体
+    [[BrowsingViewerCtrl sharedController]addWinCtrl:self];
+    [self showImages];//c使用操作对象显示图像
+    return self;
+}
+/*Delegate Messages*/
+-(BOOL)windowShouldClose:(NSWindow *)sender{
+    [window setDelegate:nil];//解除委托
+    window=nil; //放弃附属关系
+    [queue cancelAllOperations];//停止操作队列
+    [[BrowsingViewerCtrl sharedController]removeWinCtrl:self];
+    return YES;
+    
+}
+@end
+
+4.4类DrawOperation
+
+代码清单19-8 19-9中的类DrawOperation为操作对象，用于将给定URL的图像缩小，并将其绘制在视图的指定位置，该动作可以并行执行
+视图可以进行有层次地重叠配置，某个视图中包含的其他视图称为子视图，该程序中，并不是直接在大的视图中绘图，而是在其他小的子视图中绘图，为此，代码清单19-9中定义了只在该文件内使用的类ClickableImageView该类继承了NSImageView 拥有显示图像的功能，而且可以获得鼠标点击事件，双击时则创建第17章中WInCtrl类实例，将图像显示为普通大小
+在类DrawOperation的方法main中，从URL创建图像，将其设定为ClickableImageView的实例，并在指定位置配置子视图，如果图像尺寸太大，则缩小图片，使其不超过绘图范围，这里不在详细说明
+
+代码清单19-8 DrawOperation的接口部分
+
+#import <Cocoa/Cocoa.h>
+@interface DrawOperation :NSOperation{
+    NSURL *file ;//图像文件的URL
+    __weak NSView *view;//没必要保存绘图用的视图
+    NSPoint locationp;//绘图区域左下角
+}
++(void)setPictureSize:(CGFloat)value;
+-(id)initWithURL:(NSURL *)imgurl
+      parentView:(NSView *)parent at :(NSPoint)loc;
+-(void)main;
+
+@end
+
+代码清单19-9 DrawOperation的实现部分
+
+#import <Cocoa/Cocoa.h>
+#import "DrawOperation.h"
+#import "WinCtrl.h"
+
+@interface ClickableImageView : NSImageView //定义局部类
+@property (retain)NSURL *url;
+@end
+
+@implementation ClickableImageView
+@synthesize url;
+
+-(void)mouseDown:(NSEvent *)theEvent{
+    if([theEvent clickCount] >=2){
+        //双击显示图像
+        (void)[[WinCtrl alloc]initWithURL:url];
+    }
+}
+@end //ClcikabelImageView的定义到此为止
+
+static CGFloat pictureSize = 200.0;
+
+@implementation DrawOperation //DrawOperation类主体的定义
+
++(void)setPictureSize:(CGFloat)value{
+    pictureSize=value;
+}
+-(id)initWithURL:(NSURL *)imgurl parentView:(NSView *)parent at:(NSPoint)loc{
+    if((self =[super init]) !=nil){
+        file = imgurl;//保存url
+        view =parent;//弱访问
+        location =loc;
+    }
+    return self;
+}
+/*Local Methdo*/
+//-(NSImage *)imageSized:(NSURL *)url{
+//    /*省略 从URL中读取图像，如果图片大于pictureSize则创建缩小版图片*/
+//}
+-(void)main{
+    NSImage *img;
+    ClickableImageView *imgview;
+    NSRect frame;
+    NSSize sz;
+    
+    @try{
+        @autoreleasepool {
+            if(view ==nil || [self isCancelled])
+                return ;//被取消时程序停止
+       //     if((img = [self imageResized:file]) ==nil)
+        //        return;
+            sz=[img size];
+            frame.size =sz;
+            location.x +=(pictureSize -sz.width) /2.0;
+            frame.origin =location;
+            imgview =[[ClickableImageView alloc]initWithFrame:frame];
+            [imgview setImage:img];//创建小视图来设定图像
+            imgview.url =file;
+            [view addSubview:imgview];//子视图
+            [imgview setNeedsDisplay:YES];
+        }
+    }
+    @catch(...){ }
+}
+@end
+
+4.5其他改变
+
+代码清单19-10 中展示了新的main函数，这里只是将第17章的程序中使用MyViewerCtrl类的部分置换为了BrowsingViewerCtrl类
+
+代码清单19-10 新的main函数
+
+#import <Cocoa/Cocoa.h>
+#import "BrowsingViewerCtrl.h"
+
+int main(int argc,const char *argv[]){
+    @autoreleasepool {
+        BrowsingViewerCtrl *cn = [BrowsingViewerCtrl sharedController];
+        NSApplication *app =[NSApplication sharedApplication];
+        [app setDelegate:cn];
+        [app run];
+    }
+    return 0;
+}
+
+因为改变了应用名，所以Info.plist的应用识别名，束名、执行文件名都需要改变，此外，在描述菜单信息的Menu.plist文件中添加“打开目录”菜单项，然后，将新的源码进行编译并添加到链接文件，这样就可以执行了
+￼
+图19-8为执行示例，显示一览时，显示一次显示可以显示的图像，然后形成最终的一览界面，双击小图标显示的图像，即可将对象的图像显示为普通大小
+
+    """},
 ];
