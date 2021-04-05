@@ -8238,4 +8238,337 @@ int main(int argc,const char *argv[]){
 图19-8为执行示例，显示一览时，显示一次显示可以显示的图像，然后形成最终的一览界面，双击小图标显示的图像，即可将对象的图像显示为普通大小
 
     """},
+  {'title' : '第十九章（4）' , 'message' : """
+5、使用连接的通信
+
+在Mac OS X的Foundation框架中，为了使不同的线程或进程可以双工通信，提供了类NSConnection NSConnection对象处理被作为线程间线程安全的通信线路使用外，也提供了创建应用间所使用的分布式对象（distributed object）的方法
+
+而iOS中则不提供该方法
+
+根据苹果广告公司的最新文档，当创建新应用时，如果希望使用线程来提高效率，可使用上一节讲述的操作对象或GCD，在Mac OS X上的应用间进行通信时，或者在任务明确的线程间通信时，该方法非常有效
+
+5.1连接
+
+NSConnection对象在进行通信的线程或进程间创建，并成对使用，在进程中设置的NSConnection对象和在线程间设置的NSConnection对象的创建方法时不同的，但他们在通信中的概念时相通的，由NSConnection对象创建的通信线路称为连接（connect）
+图19-9中，A和B表示不同的进程地址空间或不同线程管理的对象群，假设要从A中包含的对象alpha向B中包含的对象beta发送消息，这是可以在A和B间用NSConntection对象设置连接，并在A方创建对象beta的行为“代理人”“beta”对象
+￼
+对象alpha要发送消息给beta时，会受限将消息发送给代理人“beta”于是，该消息就沿着连接被传送到B侧，由对象beta接收，执行方法后，该消息会在此经由连接被传送到A侧，并由代理人“beta”返回执行结果到alpha，就好像时对象alpha和代理人“geta”之间在进行消息互换
+这里需要注意的是，对象alpha和“beta”在A的进程（或线程）中执行，对象beta在B的进程（或线程）中执行，而即使进程不同，也可以通过发送消息来互换消息，而且，线程间通信时，因为不同线程管理的对象时不可以由其他线程直接操作的，所以就可以使用线程安全的方法进行通信
+NSConnection对象创建的连接包含消息等待队列的功能，当接收者正在进行其他作业而不能接收消息时，被发送的消息就会在等待队列中排队等待处理
+
+5.2代理
+
+在连接的另一侧实现实体对象代理人功能的对象称为代理（proxy）上例中，“beta”为对象beta的代理，代理并不是实体对象的副本，而是经由连接发送消息时行为与实体对象相同的对象
+将对象作为消息参数或结果经由连接传递时，并不是向另一侧发送给实体对象，而是创建新的代理，并传递给它
+￼
+例如，图19-10中，为了设定B侧对象betabeta的实例变量gamma，假定我们有办法setGamma：A侧对象alpha指定A侧对象epsilon为setGamma：方法的参数并阿松消息，这是，B侧将新创建epsilon的代理“epsilon”并将其作为setGamma：方法的参数传入，之后，在B侧向“epsilon”发送消息，消息就会沿着连接被发送给A侧的epsilon
+因此，一旦设定了连接，就可以经由代理进行简单的通信，但是，使用连接接收或发送消息时，首先必须确保有对象接收连接传递的消息，在上例中，对象beta及其代理“beta”如果不存在，A和B之间就不能进行通信，也不能设定新的代理
+所以，NSConnection对象在设定连接时，必须要指定经由该连接接收消息的对象，该对象就称为根目录（root object）设定根对象后，就可以自动生成所对应的代理
+在Foundation框架中，代理用NSProxy类表示，而实际通信中则经常使用该类的子类NSDistantObject
+NSProxy是Foundation框架的又一根类，且不是NSObject的子类，因为他不会自己处理所接受的大部分消息，而是传送给实体对象，因此不需要继承NSObject
+查看某个对象是否是代理，可以调用下面的方法
+
+-(BOOL)isProxy
+
+该方法在NSObject协议中声明，NSObject协议包含了对象的基本行为，NSProxy也遵守这些行为
+
+5.3方法的指针参数
+
+使用连接收发消息时，如果在参数或返回值中使用了整数、实数等基本类型或结构体，那么就和普通的方法调用一样，使用副本传递
+如之前所述，传递对象时会向对方传递该对象的代理，而无论使用对象类型的id类型，还是使用指定类的静态类型，都同样适用于这一点
+当参数数据类型都是对象之外的指针时，需要注意一点，例如，我们来考虑一下下面的方法
+
+-(void)beta:(struct techno *)sound
+
+一般情况下，在发送消息时，参数sound指向的结构体指针会被发送，但在其他进程中传递指针则没有任何意义，参数中使用了指针的消息通过连接被发送，会进行如下处理
+
+（1、发送消息
+运行时系统首先会确保接收发的地址空间，复制参数指针指向的内容，并将其指针传给接收器
+（2、处理终止时
+使用指针返回处理结果给发送发，这样一来，当消息处理终止时，接收发的内存区域内容就会被复制到发送发指针指向的位置并返回
+指针不仅可以指向单一的变量，也可以表示数组的开头，但是，程序上无法做任何区别，即使表示数组开头的指针以参数方式传入，因为只复制第一个元素，所以也要注意
+参数中使用了指针的情况下，因为要在传值时和接收时执行两次复制操作，所以消息发送的成本会很大，因此编程人员就要明确目标，此外，为了减少复制步骤，ObjectiveC中新增了修饰符in、out以及inout，如表19-1所示
+￼
+例如，如果只向接收器传递信息，就可以将上述方法按如下方式书写，这样在处理终止时，就不需要复制值并返回了
+
+-(void)beta:(in struct techno *)sound
+
+参数中没有指定in、out、inout时，同指定inout时的操作一样，但是，const修饰的参数同附加in的参数也是一样，指针之外的参数也可以用in而out和inout则对指针之外的参数没有意义
+这些修饰符，在没有使用连接的一般消息通信中也可以指定，例如，经由参数来获取错误对象（见18.5节）时，参数类型可以指定为out
+
+5.3对象的副本传递
+
+使用连接的消息发送中，当参数或返回值中指定了对象时，并不是直接传递该对象，而是创建他的代理并传入
+但是，也可以不创建代理，而是在接收刹那火速或返回值侧的地址空间中创建对象的副本，然后传递该副本，当对象不需要在发送者和接受者之间共享，且使用副本的代价比使用代理小时，该方法的效果比较好，这时，需要指定类型修饰符bycopy
+例如，将参数对象复制并传入，如下所示：
+
+-(void)setCurrentData:(bycopy id)obj
+
+然后，返回值对象被复制并接受，如下所示：
+
+-(bycopy id)currentData
+
+接收对象的副本的一方也可能是其他进程，此时，该程序必须加载被复制传入的对象的类模型
+此外，与bycopy相反，可以使用类型修饰符byref来明确指明接收代理，但是，由于传递代理时默认行为，因此几乎没有使用byref的情况
+
+5.5异步通信
+
+一般的消息发送，与函数调用一样，方法处理终止后控制权就会返回个发送方，经由连接发送消息也是一样，只是，不需要返回值时，接收侧不需要等待方法完成就可以继续进行下面的处理，这是最有效的方法
+这样的消息称为异步消息（asynchronous message），与此相对，发送发需要一直等待处理重力这样的消息发送方式称为同步消息（synchronous message）
+为了指定消息的传递方式为异步，可以使用oneway类型修饰符，如下所示：
+
+-(oneway void)startNextJob
+
+与oneway组合使用的只有void
+
+5.6设置协议
+
+向代理发送消息时，虽然和实体对象具有相似的行为，但实际上，截至到消息发送为止，我们并不知道相应的方法，向代理发送消息时，运行时系统首先需要询问实体对象，以确定该消息的参数要如何编码发送，然后在实际进行消息的发送，所以没发送一次消息，都要进行两次信息交互
+为避年多余的操作，可以实现将实体对象有什么样的方法告诉给代理，为此，实体对象会将对应的方法集汇总在协议中，并使用如下方法设置代理，这是NSDistantObject类的方法
+
+-(void)setProtocolForProxy:(Protocol *)aProtocol
+
+该设定执行后，就不再需要询问协议中包含的方法以及参数类型，所以提升了通信效率，关于类型Protocol，请参考12.2节
+
+5.7运行回路的开始
+
+正如我们在15.1节中介绍的那样，NSConnection等通信线路的输入，由运行回路进行处理，在使用NSConnection连接的消息通信中，各种对象都可以发送异步消息，为了能够监视消息以立刻启动相应的NSRunLoop对象如下所示，可以使用NSRunLoop类方法获得
+
++(NSRunLoop *)currentRunLoop
+	向该对象发送run方法后，运行回路被启动，如下所示
+
+[[NSRunLoop currentRunLoop] run];
+
+这是一个无限循环，不会停下来，想要中断处理时，一般会中断启动该回路的线程，关于运行回路的详细内容，请参照NSRunLoop参考或“Threading Programming Guide”等文档
+
+5.8 收发消息时的处理
+
+如上所述，在经由连接进行消息收发的线程（或进程）中，运行回路监视着消息的接收，而且将消息发送给其他线程后，运行回路也会监视该结果被对方返回的过程
+在不执行任何方法，只是等待从外部发送来的消息时，被接受到消息的方法会被立刻执行，那么，在其他线程中经由连接发送消息并等待返回结果时又是怎样的呢？实际上，此时如果有接收到的消息，这些消息也将被执行
+假设从线程A管理的对象经由连接向另一个线程B的对象发送了消息，此时，如果没有其他需要处理的消息，线程A的运行回路就会进入消息等待状态。而如果从线程B返回了结果，则再次调用方法来处理（图19-11）
+￼
+线程B侧的对象为了处理消息，会向消息发送方线程A侧的对象发出询问消息，这是一般的处理流程，此时，假设线程A的运行回路知道目前正在执行的方法终止才会处理其他消息，那么线程B侧发出询问时，两者都将引起死锁并被迫停止
+为了避开这样的事故，即使是等待消息返回期间也要允许其他方法执行（图19-12）
+￼
+也可以设置为该处理不能执行（详情请参考NSConnection的文档），但这是很容易会陷入死锁状态，所以要格外注意
+但是，这种在等待消息返回期间允许其他方法执行的分布式对象的行为，在某些情况下可能会产生不可预期的行为
+￼
+如图19-13 在方法m1执行期间，线程A向线程B发送消息，进入到等待回复的状态，在这期间，假设线程A由从线程C接收到消息并启动方法m3来处理，伴随着方法m3的处理，示例变量等数值会发生变化，二这就会影响到方法m1的继续执行
+这样一来，就可以可能发生不按预期顺序执行方法的情况，因此，从多个线程发送异步消息的对象需要密切关注实例变量的修改等，然后，不能考使用锁来防止这种突然插入的方法，因为执行接收的消息的都是同一个线程的
+
+5.9线程间连接
+
+下面说明同一个进程内不同线程间设定NSConnection连接的方法，设定方法时固定的，大多数情况下，按照这里介绍的方法操作都没有问题
+
+父线程侧
+	处理情况如图19-14所示，在当前线程和接下来生成的子线程间创建连接，一个连接由消息接收、消息发送两个NSPort对象构成，NSPort类为表示Cocoa通信线路的抽象类，NSPort的类方法port为返回NSPort实例的便捷构造器
+连接使用如下方法来初始化：
+
+-(id)initWithReceivePort:(NSPort *)receivePort
+			sendPort:(NSPort *)sendPort
+	使用接收消息、发送消息使用的nSPort对象来初始化NSConnection
+	便利构造器connectionWithReceivePort：sendPort：
+
+图19-14 父线程侧的处理
+
+NSArray *portArray;
+NSConnection *conn;
+NSPort *port1 =[NSPort port];
+NSPort *port2 =[NSPort port];
+conn =[[NSConnection alloc]initWithReceivePort:port1 sendPort :port2];
+[conn setRootObject:self];
+portArray =[NSArray arrayWithObject:port2,port1,nil];
+[NSThread detachNewThreadSelector:@selector(XXXWithPorts:) 
+	toTarget:XXXTarget withObject:portArray];
+
+下面，使用方法setRootObject：来设定根对象，图例中设定了self，而设定其他对象也没有关系
+
+-(void)setRootObject:(id)anObject
+	连接的对方侧设定根目录
+
+最后，将收发消息使用的NSPort对象互换并保存在数组对象中，然后启动子线程，以执行一次为参数的方法，图中，对象XXXTarget执行了方法XXXWithPorts：
+然而，在父线程侧必须要启动运行回路，如果父线程本身是使用了NSApplication的主线程，那么运行回路就已经被启动了，其他程序或子线程的情况下，则必须要显式启动NSRunLoop
+
+子线程侧：
+子线程侧的处理情况如图19-15所示
+如图所示，使用引用计数管理方式时，首先设定线程使用的自动释放池，接着使用父线程启动时传入的参数NSPort对象来创建NSConnection对象，这就是与父线程侧成对使用的连接，收发消息的端口与法线程侧时相反的，这点需要注意
+
+图19-15 子线程的事处理
+
+-(void)XXXWithPorts:(NSArray *)portArray{
+	@sutoreleasepool{
+		id *actor,*parent;
+		NSConnection *conn =[NSConnection connectionWithReceivePort :[portArray objectAtIndex:0] sendPort:[portArray objectAtIndex:1]];
+		parent =[conn rootProxy];//a
+		[parent retain]; //MRC
+		[parent setProtocolForProxy:@protocol(XXX)];//b
+		actor=[[XXXClass alloc]init];//c
+		[parent release];//MRC :手动引用计数管理
+			
+		[[NSRunLoop currentRunLoop]runm];
+	}
+	[NSThread exit];
+}
+
+（a）中使用方法rootProxy取得连接的根对象代理，之后，基本上就是对代理执行经由连接的消息发送，图中parent为局部变量，也可以时实例变量等等
+
+-(NSDistantObject *)rootProxy
+
+（b）中设定该代理的协议，这虽然不是必须的，但是为了提高效率应该这么做
+（c）中创建新实例，然后将以该实例为参数的消息经连接发送出去，并在临街的另一侧设定自己的代理，依据该操作，对方也能够想这一侧发送消息，如果没有必要，也可以不进行（c）操作，此外，也可以不想对方传递新的实例，而是传递已有对象，但由于线程内生成的局部实例不能被其他线程访问，韵词我们比较推荐这样的做法，然而，虽然图例中全部都是实例方法，但如果可以创建实例，那么类方法也是可以的
+设定完成后，启动运行回路，这样就可以处理经连接发送的消息了
+图19-15中，向根对象发送了方法setXXXActor：如下面的例子所示，参数obj中接收的对象为图19-15（c）中创建的实例代理，设定协议并持有这些代理，以便之后在通信时使用，使用ARC或垃圾回收时，必须保存在实例变量或外部变量中
+
+-(void)setXXXActor:(id)obj{
+	[obj setProtocolForProxy:@protocol(XXXActor)];
+	actor=[obj retain];//手动引用计数管理时必须保存
+}
+
+5.10进程间连接
+
+下面介绍一下在不同进程间设定NSConnection连接的方法，首先在主机内设定一个包含唯一服务名的连接，称为有名NSConnection其他进程通过使用服务名也可以创建和该NSConnection的连接，使用有名NSConnection后，也可以和其他主机运行的进程进行通信，本书中省略对这部分的讲解，下面我们来看看同一个主机内进程间如何通信
+
+（1、设置有名NSConnection
+图191-6展示了设置有名NSConnection的例子，在线程内创建新的NSConnection实例，并将其设定为有名NSConnection然而有一点需要注意的是，进程内必须启动运行回路
+
+图19-16 设定有名NSConnection的例子
+
+NSConnection *conn =[[NSConnection alloc]init];
+[conn setRootObject:anXXXserver];
+if([conn registerName:@“TheXXXserver”] ==NO){
+	/*错误处理*/
+}
+
+处理从外部经由连接发送类的消息是需要用到对象（图例中anXXXserver）而为了设定有名NSConnection，就要将该对象设定为连接的根对象并决定连接名，且在端口名字服务器中登记，这里也称为声明对象anXXXserver
+端口名字服务器管理着为其他进程童工连接的有名NSConnection，这里通过有名NSConnection的登记，其他进程就可以根据名字取得连接，在端口名字服务器中登记时使用NSConnection的方法registerName：
+
+-(BOOL)registerName:(NSString *)name
+	使用默认端口名字服务器，并使用指定的名字将接收器在本地主机上登记，如果登记成功则返回YES，如果名字登记失败，则可能因为其他连接已经使用了该名字
+	将参数指定为nil，即可取消登记
+
+端口名字服务器实际上NSPortNameServer及其子类实例，在同一个主机内的进程间通信时，由默认的名字服务器处理即可，因此不必直接访问该类
+连接中只能指定一个名字，所以当想要提供多个名字的NSConnection时，必须要新创建NSConnection实例来设定
+
+（2、确立连接
+
+为了指定名字并获得连接，NSConnection可以使用下面的类方法
+
++(id)connectionWithRegisteredName:(NSString *)name
+						      host:(NSString *)hostName
+	使用默认的端口名字服务器，查找并返回指定主机中使用指定名字登记的NSConnection主机名指定为@“”或nil时，检索本地主机内登记的名字，如果找不到则返回nil
+
+对NSConnection实例适用方法rootProxy取得提供的对象的代理，必要时还需要设定所使用的协议，该步骤与图19-15的子线程侧的处理时同样的，大家一看便知
+但是，由于多数情况下，即使取得了NSConnection也不会使用，因此可以采用从连接名直接得到代理的类方法
+
++(NSDistantObject *)rootProxyForConnectionWithRegisteredName:(NSString *)name
+												     host:(NSString *)hostName
+
+例如，可以像下面这样使用
+
+id theProxy =[NSConnection rootProxyForConnectionWithRegisteredName:@“TheXXXServer”
+		host:@“”];
+[theProxy retain];//手动管理方式时
+[theProxy setProtocolForProxy:@“protocol(XXXservices)”];
+
+有名NSConnection可以构成多个进程间的连接，需要连接时，登记名字使用的nSConnection的“子”NSConnection会被创建，该对象与各进程侧的NSConnection形成一对，这样就形成了连接（图19-17）
+￼
+
+5.11 进程间连接的例子
+
+进程间设定连接时很简单的，如下所示
+这里我们尝试为第17章中介绍的图像视图中，追加了服务器功能，首先代码，清单19-11所实现的仅仅是使用服务器端添加的方法接收并显示表示图像文件URL，返回值为错误信息，由宏SERVER定义使用的服务器名
+
+代码清单19-12为在类MyViewerCtrl中增加的范畴，可以在第17章的源码部分或前面的改良版中追加，采用代码清单19-11的协议
+
+代码清单19-11 通信中使用的协议的声明
+
+#define SERVER @"ShowImage" //服务器名
+
+@class NSString,NSURL;
+
+@protocol ShowImage
+-(NSString *)showImage:(NSURL *)aFile;
+
+@end
+
+代码清单19-12 进行服务器设置的范畴的声明
+
+MyViewerCtrl+Connection_h
+
+#import "MyViewerCtrl.h"
+#import "ShowImage.h"
+
+@interface MyViewerCtrl (Connection) <ShowImage>
+-(void)applicationDidFinishLaunching:(NSNotification *)aNotification;
+@end
+
+代码清单19-13时新增的源码的主体，很简单，类MyViewerCtrl的实例为应用的委托，在启动完成后调用的方法applicationDidFinishLaunching：中设定服务器，因为存在应用自身的运行回路，所以没有必要创建各线程独立的运行回路，指定根对象为self
+因为方法showImage：会被发送该self，所以需要事先在同一个文件内定义，读取文件时会创建类WinCtrl的实例并显示图像，不能读取时则返回简单的错误信息
+
+代码清单19-13 进行服务器的设定的范畴
+
+MyViewerCtrl+Connection.m
+
+#import <Cocoa/Cocoa.h>
+
+#import "MyViewerCtrl+Connection.h"
+#import "WinCtrl.h"
+
+@implementation MyViewerCtrl (Connection)
+
+-(NSString *)showImage:(NSURL *)aFile{
+    if([[NSFileManager defaultManager] isReadableFileAtPath:[aFile path]]){ //能够c读取文件时
+        (void)[[WinCtrl alloc]initWithURL:aFile];
+        return nil;
+    }
+    return @"Cant read"; //不能读取时
+}
+NSConnection *conn =nil;
+
+/*Delegate Method*/
+-(void)applicationDidFinishLaunching:(NSNotification *)aNotification{
+    //应用启动终止时被调用
+    conn =[[NSConnection alloc]init];
+    [conn setRootObject :self];
+    if([conn registerName:SERVER] ==NO){
+        NSLog(@"Can't estableish %@ server.\n",SERVER);
+    }
+}
+@end
+
+代码清单19-14是客户端的程序，这次是简单地从命令行执行的程序，命令行参数需要指定为图像文件的绝对路径
+启动该程序时，首先要启动将上述追加的源码编译后的图像视图，接着，从终端启动该程序，程序指定本地机器内的服务器后，创建和该服务器的连接，该根对象在theProxy中取得，不能创建文件时，向客户端返回错误信息
+该程序和服务器只进行一次通信就终止了，而当程序之间互相通信时，就必须使用线程提供运行回路和自动释放池
+
+代码清单19-14 客户端程序
+
+client.m
+
+#import <Cocoa/Cocoa.h>
+#import "ShowImage.h"
+
+int main(int argc,const char **argv){
+    if(argc <=1){
+        return 1;//ERROR
+    }
+    @autoreleasepool {
+        id theProxy = [NSConnection rootProxyForConnectionWithRegisteredName:SERVER host:@""];
+        if(theProxy){
+            NSString *s,*r;
+            [theProxy setProtocolForProxy:@protocol(ShowImage)];
+            s=[NSString stringWithUTF8String:argv[1]];
+            r=[theProxy showImage:[NSURL fileURLWithPath:s]];
+            if(r)
+                fprintf(stderr, "Message:%s\n",[r UTF8String]);
+        }
+        else{
+            fprintf(stderr, "ERROR: Can't connect\n");
+        }
+    }
+    return 0;
+}
+
+
+
+    """},
 ];
