@@ -8571,4 +8571,231 @@ int main(int argc,const char **argv){
 
 
     """},
+  {'title' : '第二十章（1）' , 'message' : """
+1、键值编码概况
+
+1.1什么是键值编码
+
+对象状态大多通过实例变量的值来表示，为了访问，改变该值，声明属性或提供访问器方法是一般做法，另外，虽然不推荐，但通过将可是属性设置为@public来访问实例变量的方法也是可以的
+与此相对，键值编码（key-value coding）是指，将表示对象包含的信息的字符串作为键值使用，来简洁访问该信息的方式，键值编码提供了非常强大的功能，基本上，只要存在访问器方法，声明属性或实例变量，就可以将其名字指定为字符串来访问，本章中，可以访问，设定的对象状态的值称为属性（property）
+之所以说键值编码的访问是间接的，是因为以下两点
+（1、也可以在运行中确定作为键的字符串
+访问器或实例变量在程序内书写时只能访问该程序的属性，例如，假设在程序内有setName：，那么在这个地方就只能访问一个属性，与此相对，由于键的保护在字符串变量中，因此，根据是“name”字符串还是“age”字符串，可以访问不同的属性
+（2、使用者无法知道世纪访问属性的方法
+如下所述，通过键访问属性的方法有很多种，可以根据每个类的情况选择合适的方法，而且，不管各类中是怎么实现的，每个属性都可以用同样的方法访问，这是她的重要性质
+
+键值编码提供了非常强大的抽象画功能
+在为了便于创建或改变GUI而引入的Cocoa绑定技术中，以及AppleScript可操作的应用开发中，键值编码都是一个重要的因素，由于键值编码以字符串为媒介，因此还可以应用在与GUI组件的结合或脚本控制等方面，在本章的后半部分，我们将介绍有关键值观察和Cocoa绑定的基础知识
+然而，虽然键值编码、键值观察技术在iOS中也可以使用，但现阶段Cocoa绑定还不可以用在iOS中
+
+1.2键值编码的基本处理
+键值编码必须的方法在非正式协议NSKeyValueCoding中声明（头文件Foundation/NSKeyValueCoding.h）这些默认在NSObject中实现
+首先我们来看看下面两个方法
+-(id)valueForKey:(NSString *)key
+	返回表示属性的键字符串所对应的值，如果不能取得值，则将引起接收器调用方法valueForUnderinedKey：
+-(void)setValue:(id)value
+		forKey:(NSString *)key
+	将键字符串key所对应的属性的值设置为value，不能设定属性值时，将引起接收器调用方法setValue：ForUnderfinedKey：
+
+不可以访问或设定值时将调用一些方法，这一点稍后再进行说明，这里先来看下实际的程序运行
+
+代码清单20-1中，Person类包含字符串类型name、email以及生疏型age的实例变量，访问器只有setName：和emai，这里，我们来尝试使用setValue：forKey：和valueForKey：
+
+代码清单20-1 键值编码的简单实例
+
+kvcsimple.m
+
+#import <Foundation/Foundation.h>
+
+@interface Person : NSObject {//使用ARC
+    NSString *name;
+    NSString *email;
+    int age;
+}
+-(void)setName:(NSString *)aName;
+-(NSString *)email;
+
+@end
+
+@implementation Person
+
+-(void)setName:(NSString *)aName{
+    NSLog(@"Access:setName:");
+    name=aName;
+}
+-(NSString *)email{
+    NSLog(@"Access:email:");
+    return email;
+}
+
+@end
+
+int main(void){
+    static NSString *keys[] ={@"name",@"email",@"age",nil};
+    @autoreleasepool {
+        id obj=[[Person alloc]init];
+        [obj setValue:@"Taro" forKey:@"name"];
+        [obj setValue:@"taro@ryugu-jo" forKey:@"email"];
+        [obj setValue:[NSNumber numberWithInt:16] forKey:@"age"];
+        for(int i=0;keys[i];i++){
+            NSLog(@"%@ : %@",keys[i],[obj valueForKey:keys[i]]);
+        }
+    }
+    return 0;
+}
+
+程序执行结果如下：
+￼
+可以看出，有访问的属性会使用该访问器，没有访问器的属性也可以设定值和访问，而且，变量obj也可以为id类型，这点需要注意，以上就是键值编码的基本操作
+
+2、访问属性
+
+2.1键值编码的方法的行为
+
+首先我们来看看valueForKey：的具体行为，下面的讲述将围绕着键字符串name进行，以下划线开始的名字不能用于方法名或实例变量名，关于这一点，请参考附录C，此外，也不要使用以get开始的名字
+- [ ] 接收器中如果有name访问器（或getName、isName、_name 、_getName）则使用它
+- [ ] 没有访问器时，使用接收器的类方法accessInstanceVariablesDirectly来查询。返回YES时，如果存在实例变量name（或_name、isName、_isName等）则返回其值
+- [ ] 既没有访问器也没有实例变量时，将引用接收器调用方法setValue：forUndefinedKey：
+- [ ] 应该返回的值如果不是对象，则返回被适当的对象包装的值（参考下面）
+
+但是，如果接收器包含与带索引的访问器模式（见20.3节）一致的方法，则将返回有数组对象行为的代理（proxy）对象
+决定可否访问实例变量的类方法以及取值失败时调用的方法如下所示
+
++(BOOL)accessInstanceVariablesDirectly
+	通常定义为返回YES，可以在子类中改变，该类方法返回YES时，使用键值编码可以访问该类的实例变量，返回NO时不可以访问，只要该方法返回YES，实例变量的可视属性即使有@private修饰，如果也可以访问
+-(id)valueForUndefinedKey:(NSString *)key
+	不能取得键字符串对象的值时，从方法valueForKey：中调用该方法，默认情况下，该方法的执行会触发异常NSUndefinedKeyException不过，通过在子类中修改定义，就可以返回其他对象
+
+下面介绍一下setValue：forKey：依然使用键字符串name
+- [ ] 接收器如果有setName：访问器（或_setName:）则使用它，set后面的键的第一个字母必须大写，也就是说setname：是不可识别的
+- [ ] 没有访问器时，使用接收器的类方法accessInstanceVariablesDirectly来询问，返回YES时，如果存在实例变量name（或_name、isName、_isName等）则设定其值。使用引用计数管理方法时，实例变量如果为对象，则旧值会被自动释放，新值被保存并代入
+- [ ] 既没有访问器也没有实例变量时，将引起接收器调用方法setValue：forUnderfinedKey：
+
+如果设定值失败，则调用下面的方法
+
+-(void)setValue:(id)value
+forUndefinedKey:(NSString *)key
+	不能设置键字符串key对应的属性值时，从方法setValue：forKey中调用该方法，默认情况下，该方法的执行会触发异常NSUndefinedKeyException不过，通过在子类中修改定义，就可以返回其他对象
+
+关于属性和访问器方法名的对应在属性声明（第7章）中也有类似说明，但是请注意，键值编码比访问器名以及实例变量名更具灵活性
+由于键值编码所接收的对象都是id类型，因此，在该部分中，编译时不会进行仔细的类型检查，所以一定注意不要传入与属性不符的对象
+使用键值编码的程序如何执行，不是由静态解析源码语法的结果决定的，而是使用程序运行时包含的信息动态决定的，与实例变量的可视属性不同，有方法决定是否可以访问实例变量这一点，会使人感觉有损一致性，总之，键值编码这一强大的功能就像是一把双刃刀，也伴随着危险，因此不可以滥用
+
+2.2属性值的自动转换
+
+在下面的讨论中，我们将属性中的单纯的数值，也就是整数或实数、布尔值这样的数据称为标量（scalar）值，将标量值、结构体、字符串或NSNumber等常数对象称为属性（attribute）
+能够使用键值编码操作的属性中，不仅有对象，也包括标量值、结构体等，上节中说明的方法valueForKey：在返回值为标量值或结构体时，会返回将其自动包装的对象，另一方面，未来给setValue：forKey：传入值，也需要使用适当的对象来包装，代码清单20-1所示的访问int类型的实例变量age就是这样一种情况
+传入的值如果为单纯的数值，也就是整数 实数或布尔型，NSNumber类就会被用于包装，例如BOOL类型的情况下，根据类方法numberWithBool：创建临时对象，为了从该对象中取得BOOL值，就要使用方法boolValue关于其他单纯类型的数值，请参考9.6节
+如果是结构体，则采用NSValue类的实例来包装，在Cocoa中，可以使用4种标准的结构体NSPoint、NSRange、NSSize、NSRect来实现自动传入，关于获取生成方法和值的访问器，请参考表9-5，二如果是其他的结构体或指针，传递时就需要自定义访问器方法
+属性值如果为对象，则可以将nil作为值传递，另一方面，使用setValue：forKey来设置标量型属性为nil时，setNilValueForKey：方法将被发送给接收器
+
+-(void)setNilValueForKey:(NSString *)key
+	在键字符串key所对应的标量属性中设定nil时，会从方法setValue：forKey中调用该方法，默认情况下，执行该方法将产生NSInvalidArgumentException异常，不过，通过在子类中修改定义，也可能产生其他行为
+
+2.3字典对象和键值编码
+
+字典类NSDictionary和NSMutableDictionary包含了NSKeyValueCoding的方法，使用他们可以进行键值编码
+NSDictionary中定义了下面的方法
+
+-(id)valueForKey:(NSString *)key
+	键字符串开头不是@时，将调用方法objectForKey：开头如果为@则将去处开头字符后生育的字符串作为键，调用超类的方法valueForKey：
+
+NSMutableDictionary中定义了以下方法
+-(void)setValue:(id)value
+	       forKey:(NSString *)key
+	一般会调用方法setObject：forKey：参数value为nil时，则调用方法removeObjectForKey：删除键对应的对象
+
+2.4根据键路进行访问
+
+属性为对象时，该对象还可能持有属性，例如，假设存在类WorkingGroup她的实例变量leader与代码清单20-1中的Person具有相同的类
+
+@interface Person:NSObject{
+	NSString *name;
+	NSString *email;
+	int age;
+}
+@end
+
+@interface WorkingGroup:NSObject{
+	Person *leader;//领导
+	NSMutableDictionary *members;//成员，可变的数组对象
+}
+@end
+
+此时，调用方法valueForKey：从WorkingGroup的实例aGroup中取出领导名，可以按照如下方式书写
+
+id aPerson =[aGroup valueForKey:@“leader”];
+id name =[aPerson valueForKey:@“name”];
+
+但是这样的写法太繁琐，在键值编码中，使用某个键访问获得某个属性对象后，如果希望在用别的键来访问该对象，可采用如下方法
+
+id name=[aGroup valueFoeKeyPath:@“leader.name”];
+
+像这样，用“.”号连接键表示的字符串称为键路径（key path）只要能找到对象，点和键多长都没有关系，例如，假设我们想知道某台电脑的所有者所隶属的组的系统管理者的email地址，这时，就可以用@“owner.group.admin.email”这样的表达（如果对象和属性的关系时如此连接的）
+该书写方式和声明属性的点运算符的使用方法很类似，但是，声明属性的点事运算符，而这里的键路径则是一个字符串。
+使用键路径访问属性的方法如下所示
+
+-(id)valueForKeyPath:(NSString *)keyPath
+	以点切分键路径，并使用第一个键向接收器发送valueForKey：方法，然后再使用键路径的下一个键，向得到的对象发送ValueForKey：方法，如此反复操作，返回最后获得的对象
+-(void)setValue:(id)value
+forKeyPath:(NSString *)keyPath
+	与valueForKeyPath：方法同样取出对象，这里只对路径中的最后一个键调用setValue：forKey：方法并设定属性值为value
+
+2.5一对一关系和一对多关系
+
+用键字符串或键路径指定属性时存在两种情况，一种是取得的值仅限一个，一种是可以获得多个值的集合，例如，在前例中，类WorkingGroup的属性leader是Person类型的对象，如果组确定，那么就确定只有一个领导，另一方面，members是数组，包含多个对象，@“members.name”键路径中对应着与人数相同的个数的人们（图20-1）
+￼
+像这样，使用键（或键路径）访问时，我们将对象确定为一个的属性称为一对一关系（to-one relationship）的属性，将属性值为数组或集合的属性称为指定一对多关系（to-many relationship）
+的属性
+然而，字典对象虽是集合的一种，但由于以字符串作为键的入口和属性拥有同等功能，因此，如果键对应的值是一个对象，那么也是一对一关系
+关于一对多关系属性的访问、更改，需要留意以下几点
+1、使用集合元素对象持有的键访问一对多关系属性时，键对应的属性被作为数组或集合返回
+2、使用集合元素对象持有的键设定一对多关系属性时，各元素对象键对应的属性全都被更改
+
+下面以上述的Person和WorkingGroup为例进行说明，代码清单20-2仅展示了main函数部分
+类Person中有指定名字和年龄的初始化器，WorkingGroup中有指定领导的初始化器，假设要使用键路径更改领导的名字以及成员的年龄，该如何操作呢？
+
+
+代码清单20-2 使用键路径访问的测试
+
+relation.m的main函数
+
+#import <Foundation/Foundation.h>
+
+int main(int argc,char **argv){ //使用ARC
+    @autoreleasepool {
+        WorkingGroup *group;
+        id chief =[[Person alloc]initWithName:@"Taro" age:30];
+        id staff1 =[[Person alloc]initWithName:@"Yuzo" age:26];
+        id staff2=[[Person alloc]initWithName:@"Miho" age:24];
+        group =[[WorkingGroup alloc]initWithLeader:chief];
+        [group addMember:staff1];
+        [group addMember:staff2];
+        
+        NSLog(@"1:%@",[group valueForKeyPath:@"leader.name"]);
+        NSLog(@"2:%@",[group valueForKeyPath:@"member.name"]);
+        NSLog(@"3:%@",[group valueForKeyPath:@"member.age"]);
+        [group setValue:@"Jiro" forKeyPath:@"leader,name"];
+        [group setValue:[NSNumber numberWithInt:10] forKeyPath:@"member.age"];
+        
+        NSLog(@"4:%@",[group valueForKeyPath:@"leader.name"]);
+        NSLog(@"5:%@",[group valueFoeKeyPath:@"member.age"]);
+    }
+    return 0;
+}
+
+可以看出，属性吊饰单一对象时，访问和变更的只能是该对象，另一方面，表示键路径的属性为数组时，访问得到的结果仍是数组，而且，改变值时，所有对应的值都会被改变
+数组元素又是别的数组的属性的情况下，使用键路径得到的对象有可能是嵌套数组（成为子数组）
+
+2.6数组对象和键值编码
+
+数组类NSArray和NSMutableArray以及集合类NSSet和NSMutableSet都包含协议NSKeyValueCoding的方法，也都有键值编码，之前的程序示例中也有集合方法的执行
+
+-(id)valueForKey:(NSString *)key
+	以key为刹那火速，对集合的各元素调用方法valueForKey：后返回数组（NSSet时返回集合）对各成员使用方法valueForKey：返回nil时，则包含NSNull实例
+-(void)setValue:(id)value
+	       forKey:(NSString *)key
+	对集合各元素调用方法setValue：forKey：需要注意的是，即使集合对象自身不可以改变，也能调用该方法
+
+    """},
 ];
