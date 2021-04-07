@@ -8798,4 +8798,292 @@ int main(int argc,char **argv){ //使用ARC
 	对集合各元素调用方法setValue：forKey：需要注意的是，即使集合对象自身不可以改变，也能调用该方法
 
     """},
+  {'title' : '第二十章（2）' , 'message' : """
+3、一对多关系的访问
+
+3.1带索引的访问器模式
+包含一对多关系的属性也可以像其他属性一样访问，但访问用户自定义类中包含的各元素对象的方法却有些不同，从键值编码方面来说，如果该属性也能像数组对象那样处理，使用起来就简单多了
+即使是非数组对象，如果有某个模式的访问器，也可以进行像数组一样的键值编码操作，该访问器模式称为带索引的访问器模式（indexed accessor pattern）
+这里具体讲一下下面两个方法的实现，下划线部分中会输入键字符串
+
+-(NSUInteger)countOf___;
+-(id)objectIn ___ AtIndex:(NSUInteger)index;
+
+请大家会想一下类簇，数组类为类簇，原始方法是count和objectAtIndex，只要定义了这2个方法就可以定义数组行为的对象，上述两个方法也是同样，用键值编码访问时也可定义数组行为
+下面来看下实际的程序运行，代码清单20-3中有类Team，C的数组members[]的开头存入了若干个对象，变量count记录着对象个数，根据上述带索引的访问器模式，我们定义了两个方法countFellows和objectInFellowsAtIndex：
+
+代码清单20-3 带索引的访问器模式的使用示例
+
+kvcindex.m
+
+#import <Foundation/Foundation.h>
+
+#define MAXMENBER 8
+
+@interface Team : NSObject{ //使用ARC
+    id members[MAXMENBER];
+    int count;//初始值为0
+}
+-(NSUInteger)countOfFellows;
+-(id)objectInFellowsAtIndex:(NSUInteger)index;
+
+@end
+
+@implementation Team
+
+-(void)addMember:(id)someone{
+    if(count<MAXMENBER)
+        members[count++]=someone;
+}
+-(NSUInteger)countOfFellows{
+    return count;
+}
+-(id)objectInFellowsAtIndex:(NSUInteger)index{
+    return (index<count) ?members[index] :nil;
+}
+
+@end
+
+int main(void){
+    @autoreleasepool {
+        id obj;
+        id aTeam =[[Team alloc]init];
+        [aTeam addMember:@"Hiroshi"];
+        [aTeam addMember:@"Mika"];
+        obj=[aTeam valueForKey:@"fellows"];
+        NSLog(@"obj=%@",NSStringFromClass([obj class]));//类名
+        NSLog(@"Fellows:%@",obj);
+    }
+    return 0;
+}
+
+请注意下main函数内的注释部分，这里用@“fellows”键访问Team类实例，但该类中既没有fellows实例变量也没有访问器 ，执行结果如下所示：
+￼
+可以看出，用@fellows键访问后，结果返回了数组对象，人名用（）括起来是数组对象的数组列表的书写方法，NSKeyValueArray是系统内部类，提供了数组的接口这样一种代理
+为了提高运行效率，除了上述两个方法之外，还可以实现下面的方法，这也是和数组类簇中的getObjects：range：相同的方法
+
+-(void)get___:(id __ unsafe _ unretained[])aBuffer range:(NSRange)aRange;
+
+3.2一对多关系的可变访问
+
+实现之前说明的带索引的访问器模式后，使接收器对象内看起来包含了常数数组，而除此之外，也可以包含可变数组，该可变数组不仅包含属性的元素，添加或删除数组元素之后，也会联动追加或删除属性元素
+首先来看一下获得像这样的可变数组对象的方法
+
+-(NSMutableArray *)mutableArrayValueForKey:(NSString *)key
+	返回相当于用键字符串指定的一对多关系的属性的可变数组，操作被返回的数组与操作属性同时进行
+-(NSMutableArray *)mutableArrayValueForKeyPath:(NSString *)keyPath
+	接收器属性在键路径中指定，其他与上述方法相同
+
+用该方法操作属性时，除了之前提到的访问常数数组需要添加两个方法之外，还需要实现用来插入和删除的方法，下划线部分加入了键字符串（通常为复数形式）使用这些方法并通过键值编码访问时，内部的代理就会作为数组进行操作了
+
+-(void)insertObject:(id)in___AtIndex:(NSUInteger)index;
+-(void)removeObjectFrom___AtIndex:(NSUInteger)index;
+
+不仅是上述两个方法，通过实现下面的方法也可以实现属性的可变访问
+
+-(void)set___:(id)anArray;
+
+在实现该方法时，通过使用被作为参数传入的数组元素对象，就可以置换一对多关系的全部属性内容，那么怎么实现可变数组操作呢？从接收器中取出常数数组对象，对其进行元素更新操作后，通过该方法就可以完全置换属性，但是，和实现了插入和删除的两个方法时相比，效率要低一些
+在添加了插入和删除的方法的基础上，如果能实现下面的方法，则将能显著改善运行效果
+
+-(void)replaceObjectIn___AtIndex:(NSUInteger)index withObject:(id)obj;
+
+如果上述方法都没有实现，那么当存在与键字符串同名的实例变量且该变量又是可变数组对象时，方法mutableArrayValueForKey：将直接返回该值
+上面介绍了将一对多关系的属性作为可变数组进行操作的方法，同样，也有将其作为可变集合的操作方法，而关于这一点，本书不做讨论
+
+
+4、KVC标准
+
+4.1验证属性值
+通过使用键值编码，可以在属性名自动选择访问器或者直接修改实例变量的值，然而在某些情况下，如果预期之外的对象被设定为了属性值，那么就可能出现问题
+因此，在为某属性代入对象前，为例验证该对象是否有误，可以使用相应的方法来验证，但是该验证方法不能自动调用，因此，在访问属性之前，必须自行调用该方法
+验证某键字符串的属性值的方法可以按如下形式定义，下划线中写入键字符串，参数ioVlaue为需要验证的对象指针，参数outError被用来当验证结果中存在问题时返回出错信息
+
+-(BOOL)validate___:(ioout id *)ioValue error:(out NSError **)outError;
+
+要验证的对象没有问题时，方法返回YES，两个参数值不变
+对象有问题，但是能将对象值修正为有效值时，方法会创建新的对象，并取代原对象将新对象代入ioVlaue，参数outError不变，返回值为YES
+对象有问题且不能修正时，则创建错误对象并将其代入参数outError，方法返回NO
+设定属性值的访问器方法（set__）不能调用验证方法
+例如，大家不妨考虑一下邮政号码字符串为属性时的情况，如果属性名为postalCode则验证方法为vaildatePostalCode：error：赋值“数字3位-数字4位”这种形式的字符串时返回YES，否则返回NO，数字如果是全角，则将其改成半角后返回
+运行时键会被动态地赋值给对象的情况下，不能在代码中使用上述方法名，此时，可以使用下面的两个方法
+
+-(BOOL)validateValue:(inout id *)ioValue
+			 forKey:(NSString *)key
+			    error:(out NSSError **)outError
+	使用指定键寻找validate__：error的验证方法并调用，如果不存在这样的验证方法则返回YES
+-(BOOL)validateValue:(inout id *)ioValue
+		  forKeyPath:(NSString *)keyPath
+			     error:(out NSError **)outError
+	与上述方法的不同之处在于键路径的指定，需要注意的是，实际被调用的验证方法并不是该方法的接收器，而是与最后的键元素相对应的属性的验证方法
+
+使用引用计数方式管理内存的情况下，需要格外注意验证方法的调用，验证的对象，错误对象都由指针来访问时，他们的值可能会被修改，此时，即使原对象没有被显式地释放，也不能在进行访问，此外，传递那些拥有所有权的对象时也需要小心
+
+4.2键值编码的准则
+
+如果可以使用键值编码来访问某个属性，则称该属性是键值编码的准则，或称为KVC准则（compliance）反之，如果知道某属性位KVC准则，那么就可以编写使用键值编码的程序，KVC准则和协议适用的概念不同，她不是以类为单位，而是讨论以各个属性为单位是不是准则的问题
+要使某属性为KVC准则，就必须实现能使用valueForKey：方法的访问器。当属性可变时，还需要与方法setValue：forKey：相应的访问器，下面列举一些具体的条件
+Property为属性（标量或单纯型的对象）或一对一关系时，想要称为KVC准则，就需要满足如下条件，属性名为“name”
+- [ ] （a）包含了name或isName访问器方法。或者（b）包含name（或_name）实例变量
+- [ ] 可变属性时，还需要实现setName：方法，需要执行键值验证时，要实现验证方法（validateName：error：）但是setName：方法中不能调用验证方法
+
+属性为一对多关系时，想要称为KVC准则，需满足如下条件，属性名为“names”
+- [ ] （a）实现了返回数组的names方法，或者（b）持有包含names（或_names）数组对象的实例变量，或者（c）实现了带索引的访问器模式的方法countOfName以及objectInNamesAtIndex：
+- [ ] 当一对多关系的属性可变时（a）持有返回可变数组对象的names方法，或者（b）实现了带索引的访问器模式的方法insertObject：inNamesAtIndex：以及removeObjectFromNamesAtIndex：
+
+当然，在实现带索引的访问器模式的方法时，为改善执行效率，也可以添加其他方法来实现
+
+5、键值观察
+
+5.1键值观察的基础
+
+键值观察（key-value observing）即某个对象的属性改变时通知其他对象的机制，有时也记作KVO，为了在GUI组件和程序之间调整值，Cocoa绑定会将键值编码和键值观察组合起来使用，因此，想要理解Cocoa绑定，首先就必须理解键值观察的概念
+对被观察对象来说，键值观察就是注册想要监视的属性的键路径和观察者，当属性改变时，观察者会收到消息，虽然和NSNotification通知相类似，但键值观察中不存在相当于通知中心的对象，所以不可以指定消息的选择器
+键值观察功能可用NSObject来实现，可以监视属性、一对一关系、一对多关系等各种形式的属性
+仅仅在使用键值编码准则来访问访问器或实例变量的情况下，才可以监视属性的变化，在方法内直接改变实例变量值时，就不能监视了，具体的KVC准则有以下三点
+- [ ] 随访问器方法二改变
+- [ ] 使用setValue：forKey：和键进行改变，此时也可能不经由访问器
+- [ ] 使用setValue：forKeyPath：和键路径进行改变，此时也可能不经由访问器，不仅仅是最终的监视对象的属性，当路径中的属性发生变化时，也会被通知（参考下面的例子）
+NSObject中提供了键值观察所必需的方法，头文件Foundation/NSKeyValueObserving.h中将其定义为了非正式协议的形式
+首先，需要使用下面的方法注册键值观察
+
+-(void)addObserver:(NSObject *)anObserver
+	      forKeyPath:(NSString *)keyPath
+		    options:(NSKeyValueObservingOptions)options
+		    context:(void *)context
+	从接收器的角度来看，监视键路径keyPath中的某个属性，要在接收器中注册，观察者为对象anObserver属性变化时发送的通知消息中，包含着显示变化内容的字典数据，参数context中指定的任意指定（或对象）options中指定字典数据中包含什么样的值，值可取下面的常数或他们的位或运算
+	NSKeyValueObservingOptionNew  提供属性改变后的值
+	NSKeyValueObservingOptionOld    提供属性改变前的值
+
+使用该方法后，当指定监视的属性被改变时，下面的消息将被发送给观察者，所有的观察者都要实现如下方法
+
+-(void)observeValueForKeyPath:(NSString *)keyPath
+				      ofObject:(id)object
+					change:(NSDictionary *)change
+					context:(void *)context
+	从参数object的角度来看，当键路径keyPath的属性发生变化时会发送通知，字典change中保存着改变的相关信息，参数context中返回注册观察者时指定的值
+
+被作为通知消息的参数传入的字典change中保存着入口的键字符串及其内容，如下所示
+￼
+￼
+如果要停止停止已经注册的监视，可使用下面的方法
+
+-(void)removeObserver:(NSObject *)anObserver
+		    forKeyPath:(NSString *)keyPath
+	观察者为anObserver键路径将删除keyPath内容注册的监视这一消息传达给接收器
+
+使用引用计数管理方法时需要注意一些事项，注册属性监视时，不需要持有观察者及监视对象的属性，还有，如果在不删除注册信息的情况下，将关联对象释放，那么随着属性的变更，就可能会发生访问已释放了的对象的危险
+
+5.2示例程序
+
+下面让我们通过一个简单的程序来看看键值观察到底时怎么回事，这仅仅是一个建模游戏登场人物关系的程序，没有其他意义
+类Creature中包含属性字符串name和整数hitPoint，hitPoint为声明属性，还有一个与其无关的sufferDamage：方法，为编程键值观察的观察者，这里还定义了接收消息的方法，方法description用来简单地表示对象值，继承该Creature的类是Person和Dragon，Dragon中只添加了属性master（饲养者），其他与Creature相同
+创建两个Person实例及一个Dragon实例，（A）位置处的设定是，当dra的master的hitPoint被改变时可以通知给dra自身，（B）的设定是，当P1的hitPoint被改变时可以通知P2
+
+代码清单20-4 键值观察的例子
+
+kvosample.m
+
+#import <Foundation/Foundation.h>
+
+@interface Creatured : NSObject {//使用ARC
+    NSString *name;
+    int hitPoint;//命中点
+}
+-(id)initWithName:(NSString *)str hitPoint:(int)n;
+@property int hitPoint;
+-(void)sufferDamage:(int)val;
+-(NSString *)description;
+-(void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context;//接收通知的方法
+@end
+
+@implementation Creatured
+
+-(id)initWithName:(NSString *)str hitPoint:(int)n{
+    if((self =[super init]) !=nil)
+    { name = str;hitPoint =n;}
+    return self;
+}
+
+@synthesize hitPoint;
+-(void)sufferDamage:(int)val{ //受伤后命中点降低
+    hitPoint =(hitPoint >val) ? (hitPoint -val) :0;
+}
+-(NSString *)description{
+    return [NSString stringWithFormat:@"<<%@,%@,HP=%d",NSStringFromClass([self class]),name,hitPoint];
+}
+-(void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context{ //接收键值观察的通知
+    printf("%s",[[NSString stringWithFormat:@"---Received by %@ ---\n"
+                  @"object =%@,Path=%@\n"
+                  @"Change =%@\n",self,object,keyPath,change]UTF8String]);//使用字符串常量连接
+}
+@end
+
+@interface Person : Creatured
+@end
+
+@implementation Person
+@end
+
+@interface Dragon : Creatured
+@property(weak) Person *master;//饲养人
+@end
+
+@implementation Dragon
+
+@synthesize master;
+
+@end
+
+int main(void){
+    int opt= NSKeyValueObservingOptionOld | NSKeyValueObservingOptionNew;//接收b改变前后的值
+    @autoreleasepool {
+        Person *p1,*p2;
+        Dragon *dra;
+        p1=[[Person alloc]initWithName:@"Taro" hitPoint:500];
+        p2=[[Person alloc]initWithName:@"Jiro" hitPoint:140];
+        dra=[[Dragon alloc]initWithName:@"Choco" hitPoint:400];
+        dra.master=p1;
+        [dra addObserver:dra forKeyPath:@"master.hitPoint" options:opt context:NULL];//(A)
+        [p1 addObserver:p2 forKeyPath:@"hitPoint" options:opt context:NULL];//(B)
+        [p1 setHitPoint:800];//1
+        [p1 sufferDamage:200];//2
+        dra.master =p2;//3
+        p1.hitPoint -=100;//4
+        p2.hitPoint +=200;//5
+        [dra removeObserver:dra forKeyPath:@"master.hitPoint"];//6
+        p2.hitPoint -=300;//7
+        [p1 removeObserver:p2 forKeyPath:@"hitPoint"];
+    }
+    return 0;
+}
+
+执行结果如下所示
+￼
+首先1处改变了p1的hitPoint，并确定向p2和dra发送了通知消息
+另一方面，2中虽然调用了更改hitPoint的消息sufferDamage：但却没有收到相应的通知，像这样，使用非KVC准则的消息改变属性后，就成为监视外的对象了
+3中改变了dra的master这时将接收到master.hitPoint被改变的消息，所以，即使不能指定的键路径的属性，在产生改变时也会被通知，4、5中使用了声明属性改变了p1、p2的hitPoint，这也被监视到了，可见 虽然A的设定中使用了master.name键路径，但即便不使用相同的键路径，也能进行监视
+在6中删除了dra为观察者注册的监视后，7中p2的hitPoint即使被改变，也无法接受到通知消息
+
+5.3一对多关系的属性监视
+
+属性为一对多关系时，监视方法与前述方法相同，但是，有一点必须要注意，那就是，针对一对多关系为数组类型时使用方法mutableArrayValueForKey：获得的对象，以及一对多关系为集合类型时使用方法mutableSetValueForKey：获得的对象，如果不修改值时不能进行监视的（方法分别为～ForKeyPath：时也是一样）
+例如，假设某对象aParty的实例变量members包含NSMutableSet实例，使用同名访问器members传入该对象，此时执行下面两行代码
+
+id a=[aParty members];
+id b=[aParty mutableSetValueForKey:@“members”];
+
+a和b这两个对象是不同的，实际上，执行这个程序后会发现，a和b分别是__NSCFSet类和NSKeyValueSlowMutableSet类的实例，因为a是集合，所以即使有元素操作也不会收到变更通知，而b中的元素改变则是被监视的
+也可以指定数组内的特定元素进行监视，本书中对此不做讨论
+
+5.4依赖键的登记
+某属性值随着同一对象的其他属性的改变而改变是常有的事情，通过事先将这样的依赖关系在类中注册，那么即便属性值间接地发生了改变，也会发送通知消息，为此需使用下面的类方法
+
++(void)setKeys:(NSArray *)keys
+triggerChangeNotificationsForDependentKey:(NSString *)dependentKey
+	数组keys中可以保存多个键，注册依赖关系，使当这些键中任意一个键对应的属性发生改变时，都会自动引起与键dependentKey的属性变化时一样的行为（被监视时发送通知）
+
+例如，Person类中有image属性，该属性保存有weapon、armor、helmet以及用来表示人物的图片，假设根据持有的武器、铠甲、头盔的不同，图片也不一样，那么，当改变持有的物品时，就需要重绘图片，因此，与其分别监视武器、铠甲、头盔，不如设定他们之间的依赖关系，这样只监视图片就可以了，程序也会变简单
+
+    """},
 ];
