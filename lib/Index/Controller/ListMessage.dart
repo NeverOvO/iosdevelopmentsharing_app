@@ -9086,4 +9086,235 @@ triggerChangeNotificationsForDependentKey:(NSString *)dependentKey
 例如，Person类中有image属性，该属性保存有weapon、armor、helmet以及用来表示人物的图片，假设根据持有的武器、铠甲、头盔的不同，图片也不一样，那么，当改变持有的物品时，就需要重绘图片，因此，与其分别监视武器、铠甲、头盔，不如设定他们之间的依赖关系，这样只监视图片就可以了，程序也会变简单
 
     """},
+  {'title' : '第二十章（3）' , 'message' : """
+6、Cocoa绑定概述
+
+6.1目标-行为-模式的弱点
+
+在面向对象程序设计中，应尽可能地去除特定的类与类之间的关系，定义低耦合的类，也就是说，某个类改变时，最好不会影响其他的类，否则就不是我们期望的编程，但是，就算完美地定义了每个类，他们间如果不能联动也就不能实现功能，一个典型的例子就是，窗体及窗体上的按钮、菜单等GUI组件也是对象，他们间如果不连接，程序就不能运行
+这样看来，除了各个类或GUI组件原本就应该有的功能外，还需要喂它们之间的联动补充必要的代码，而这样的代码就像是把元素粘在一起的胶水，因此成为胶水代码（glue code）胶水代码既可以被写成专门的类，也可以渗透在各个关联的类中
+Mac OS X从第一个版本NeXTstep开始，就有了将GUI组件与使用组件的对象结合在一起的开发工具Interface Builder，“胶”的部分不需要特意编写代码，使用Interface Builder的GUI环境就可以简单地实现，因此能大幅度提高编程效率，Interface Builder中GUI组件被操作时，会预先指定向哪个对象发送什么消息，这里，ObjectiveC灵活的消息发送机制发挥着非常大的作用，以上就是我们说明过的目标-行为模式
+但是“从操作组件向目标发送消息”这样的方式在很多情况下都是无能为力的，特别是当值改变时，为了事多个对象联动，必须书写专门的代码，图20-2（a）希望实现的是，绘图用的参数可从滑块或文本输入中获得，并根据值的变化来改变各种显示，这样的情况很常见，但只用Interface Builder连接解决不了这样的问题，还有必须使用专门的对象，程序自身虽然简单，但这样的组合多了的话，就要写大量相似的代码
+￼
+
+6.2什么是Cocoa绑定
+
+从Mac OS X10.3起开始引入了Cocoa绑定（Cocoa binding）是指，使用键值编码和键值观察的组合，在多个对象间共享属性值的变化的机制（在iOS中不可以使用）
+下面以图20-2（b）为例来说明他的概要
+在该例中，滑块和文本域，及绘图视图共享某个属性，滑块或文本域不仅可以改变属性值，还可以将属性值的改变通知给各个对象，这样的属性（的集合）称为模型，管理模型的对象称为控制器，根据用途的不同，可以使用字典对象或数组对象作为模型，假设这里以字典对象为模型，并共享他的一个条目，以字典为模型时，可以使用已有的NSobject Controller类实例作为控制器
+对控制器指定模型属性为键路径，将对象设定为该属性改变时可以获得相应的通知消息，同时，该对象必须定义方法来接受消息，使用这个机制将对象和控制器关联起来，就称为绑定
+Interface Builder除了能根据目标-行为机制进行组件间的连接外，还可以连接Cocoa绑定而设定的GUI组件，滑块或文本域等大家所熟知的GUI组件中也已经实现了Cocoa绑定的方法。NSObjectController等控制器实例在Interface Builder中也可作为组件来使用，因此，图20-2（b）中只需要考虑绘图视图自身的制作方法、及视图与控制器绑定的方法即可
+除了之前提的NSObjectController这样的控制器外，其实还有很多控制器类，虽然也可以自己制作需要的控制器，但一般情况下，根据希望通过绑定来共享的属性的性质或目的，从预先准备好的类中选择就可以了，例如，操作数组或集合时选择NSArrayController类，连接用户默认（见16.4节）与GUI组件时选择NSUserDefaultsController类等等
+另外，将属性值传给绑定目标时，还可以变化值的单位或者反转真假值，详情请参考类NSValueTransFormat的参考文档
+
+6.3Cocoa绑定所需的方法
+
+使用Cocoa绑定，将某对象绑定到控制器属性时，该对象必须实现下面的方法，该方法使用头文件AppKit/NSKeyValueBinding.h中的非正式协议NSKeyValueBindingCreation来声明
+
+-(void)bind:(NSString *)binding
+    toObject:(id)observable
+withKeyPath:(NSString *)keyPath
+      options:(NSDictionary *)options
+
+因为参数binding为表示和其他实例属性绑定的属性的字符串，所以称为绑定名，参数observable时控制器，由参数keyPath中控制器可见的键路径来指定控制器属性，options中指定记录选项条目的字典对象，不做特别指定时传入nil
+在对象侧，至少还需要定义一个属性改变时接受通知消息的方法
+
+-(void)observeValueForKeyPath:(NSString *)keyPath
+				      foObject:(id)object
+					change:(NSDictionary *)change
+					context:(void *)context
+
+这也是讲解键值观察时说明的方法（非NSKeyValueBindingCreation协议方法）也就是说，绑定时必须要设定键值观察，参数keyPath中会被传入上述指定的键路径，参数object中则会被传入控制器，通过上述两个方法的组合，Cocoa绑定即可发挥功效
+下面详细了解一下绑定名，根据对象的不同，有的可能会与多个控制器绑定，有的则是在同一个控制器间持有多个不同目标的绑定，次噢时，该字符串的作用就是向接收器传递哪个属性为绑定对象，所以，该字符串不一定要与属性名或键路径一致，此外，滑块等Interface Builder的GUI组件使用了“value”这一绑定名来表示设定值，而最大最小值、可否利用、字体等则使用共享绑定名，在Interface Builder中可以容易地确认
+也可以定义非正式协议NSKeyValueBindingCreation的其他方法，例如，解除设定过的绑定时，通过定义下面的方法就可以解除键值观察
+
+-(void)unbind:(NSString *)binding
+
+将类作为组件在Interface Builder中注册时，需要定义其他方法，关于这一点，本书中不做说明
+
+6.4例题：绘制二次函数图的软件
+
+鉴于篇幅问题，本书中没有对Cocoa绑定进行详细说明，因此，这里我们选取一个简单的例子，通过展示之前介绍的方法定义，来从整体上把握Cocoa绑定
+例子是一个绘制二次函数图的软件，也就是在yx平面上绘制抛物线，通过滑块改变下面式子中的系数a、b、c的值时，该软件可以自动修改绘图，系数值可以在文本域中设定（图20-3）
+y=ax^2+bx+c
+￼
+而且，在该软件中，拖动图框时系数也会随之变化，上下移动图时系数c的值会跟着变化，二左右拖动时会怎么变化呢
+图20-4显示了接口的概况，有3组滑块和文本域，对应着3个参数，创建一个NSObjectController实例，以可变字典对象为模型，字典对象可以通过“content”键来引用，字典对象的3个分系数值分别用“a”“b”“c”这3个键来保存，这样一来，参数a的值就可以通过“content.a”来保存，这样一来，参数a的值就可以通过滑块、文本域绑定，这些组件域设定值对应的绑定名为“value”图中只描述了系数a，其他两个系数也是同样的
+￼
+绘图通过被作为Application框架的NSView子类（自定义视图）定义的QuadraticView类来实现（Quadratic Foundation 二次函数）QuadraticView中可以使用绑定名“a”“b”“c”而且还有和窗体中的组件层次进行绑定的FoundationCtrl类，需要自定义的类仅此两个
+关于窗体组件的配置和应用簇的创建，我们在第17章的例子中已经做过介绍，因此不再赘述，这里只展示与Cocoa绑定相关的代码
+首先介绍FundationCtrl它是NSApplication实例的委托，应用启动后只进行菜单和窗体的设定，这些设定大部分都可以通过Interface Builder完成，也可以使用在窗体中配置组件的方法来绑定组件，代码清单20-5展示了其中一部分，只是重复调用绑定方法而已，而且，为了将创建的自定义视图和模型在Interface Builder中绑定起来，自定义视图作为INterface Builder的托盘注册稍有些麻烦
+
+代码清单20-5 组件间绑定（FundationCtrl的一部分）
+
+-(void)windeowSetUp{ //使用ARC
+    ...
+    static NSString *title[]={@"a",@"b",@"c"};/*系数的名称*/
+    static double initVal[]={1.0,0.0,-1.0};/*系数的初始值*/
+    NSTextField *tx[3];
+    NSSlider *sl[3];
+    QuadraticView *qv;
+    NSString *str;
+    NSMutableDictionary *dic;
+    dic =[[NSMutableDicitionary alloc]initWithObjectsAndKeys:
+          [NSNumber numberWithDouble:initVal[0]],@"a",
+          [NSNumber numberWithDouble:initVal[1]],@"b",
+          [NSNumber numberWithDOuble:initVal[2]],@"c",nil];
+    objCtrl=[[NSObjectController alloc]initWithContent:dic];
+    /*设定控制器*/
+    for(i=0;i<3;i++){
+        ...
+        tx[i]=[[NSTextField alloc]initWithFrame:r];
+        .../*设定文本域*/
+        sl[i]=[[NSSlider alloc]initWithFrame:r];
+        .../*设定滑块*/
+        str=[NSString stringWithFormat:@"content.%@",title[i]];
+        /*为每个系数创建“content.a”这样的键路径*/
+        [tx[i] bind:@"value" toObject:objCtrl withKeyPath:str options:nil];/*第i个文本域绑定到控制器*/
+        [sl[i] bind:@"value" toObject:objCtrl withKeyPath:str options:nil];/*第i个滑块绑定到控制器*/
+        [qv bind:title[i] tiObjCtrl withKeyPath:str options:nil];/*视图第i个系数绑定到控制器*/
+    }
+    ...
+}
+
+6.5自定义视图的方法定义
+
+我们来看下QuadraticView是怎么定义的，接口如代码清单20-6所示，注释中带“省略”的方法与绑定无关，因此代码清单20-7中也不会包含，虽然定义专门用于绘图的方法的范畴，但是本书中不做详细介绍，请下载源码查看
+
+代码清单20-6 QuadraticView的接口部分
+
+#import <Foundation/Foundation.h>
+#import <AppKit/NSView.h>
+#import <AppKit/NSKeyValueBinding.h>
+#define XY_MAX 12 /*xy平面的大小*/
+#define COEFFS 3
+
+@class NSImage;
+
+@interface QuadraticView : NSView{
+    NSMutableDictionary *coefficients;/*保存系数的字典*/
+    NSImage *cache;/*绘图用的缓存*/
+    NSMutableArray *gridArray;/*用于绘制网格和xy轴*/
+}
+-(id)initWithFrame:(NSRect)sect;/*省略*/
+@property(copy)NSMutableDictionary *coefficients;
+-(void)drawRect:(NSRect)aRect;/*省略*/
+-(void)moveGraph:(NSPoint)d;/*为了移动图形而进行系数计算*/
+-(void)mouseDown:(NSEvent *)event;/*监视鼠标拖拽*/
+
+/*Key-Value Binding*/
+-(void)bind:(NSString *)binding toObject:(id)obsvObj
+    withKeyPath:(NSString *)keyPath
+    options:(NSDictionary *)options;
+-(void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context;
+
+@end
+
+代码清单20-7中展示了QuadraticView的实现部分，但省略了和绑定无关的部分
+首先，实例变量数组bindObj和数组bindKey被用来在该QuadraticView实例被绑定时保存绑定对象和键路径
+声明属性coefficients为可变字典对象，包含3个系数的值，当该属性被修改时，图也随之改变，除了采用这种视线之外，例如将系数保存在double型的数组中也是可以的
+下面首先说明一下方法bind：toObject：withKeyPath：options：该方法会检查被作为绑定名传递的第一个参数是否为数组BindKeys的元素，如果不是就交由超类来处理，如果是则说明指定来某个系数，折后只能够情况下就要对第二个参数对象obsvObj和第三个参数键路径keyPath设定键值观察，并指定self为观察者，此时，虽然会将BIndKeys数组对应的元素指针作为context：的刹那火速传入，但由于使用了ARC，为了传入void *类型，必须使用__bridge修饰符来转换，被指定的对象obsvObj和键路径分布被保存在数组中
+然后我们再来看方法observeValueForKeyPath：ofObject：change：context：在上述设定键值观察后属性发生变化时，该方法会被调用，使用该超类时，必须查看3个系数中哪个属性发生了什么变化，这里，由于第四个参数context中会返回之前传入的数组BindKeys的元素指针，因此只要查看一下就能知道时哪个系数发生了变化，但是这里也必须使用————bridge做转换，知道了对应的系数后，改变字典对象coefficients，之所以将变量coefficient自身作为参数来调用设置器setCoefficients：一是为了绘图，二是为了使属性coefficients被监视时也能够对应
+像这样，希望从控制器传入模型值的变化时，可以使用方法bind：toObject：withKeyPath：options：设定模型属性的键值观察，由于模型改变时方法observeValueForKeyPath：ofObject：change：context：就会被调用，因此知道哪个属性发生了变化，就能将其反映到自身取值的变化上
+下面时从视图侧改变模型值的情况
+方法moveGraph：会根据参数结构体表示的移动量更新系数b、c同时移动图，而系数a不变这个方法moveGraph：从mouseDown：中调用，方法mouseDown：为NSView类的方法，用来跟踪鼠标被点击后的行为
+方法moveGraph：在字典对象coefficients改变后，调用设置器setCoefficients：重新进行绘图，最后，因为需要改变模型值，所以这里使用了数组bindKey的键路径来设定数组bindObj元素的值，这两个数组的值，也就是方法bind：toObject：withKeyPath：options：被调用时设定的控制器和模型的属性的键路径
+
+代码清单20-7 QuadraticView的实现部分
+
+#import "QuadraticView.h"
+#import "QuadraticView+Draw.h"
+#import <Cocoa/Cocoa.h>
+
+static NSString *BindKeys[]={@"a",@"b",@"c"};
+
+@implementation QuadraticView{
+    __weak id bindObj[COEFFS]; /*保持绑定到各系数的对象*/
+    id bindKey[COEFFS];/*各对象的属性的键路径*/
+}
+
+@dynamic coefficients;
+-(NSMutableDictionary *)coefficients{
+    return coefficients;
+}
+-(void)setCoefficients:(NSMutableDictionary *)val{
+    if(coefficients !=val)
+        coefficients =[val mutableCopy];
+    [self redrawGraph];
+    [self display];
+}
+-(void)moveGraph:(NSPoint)d{ //移动图
+    double a=[[coefficients valueForKey:@"a"]doubleValue];
+    double b=[[coefficients valueForKey:@"b"]doubleValue];
+    double c=[[coefficients valueForKey:@"c"]doubleValue];
+    //new b:=b-2ax new c:=c+ax^2 -bx+y
+    double w=a*d.x;
+    id bval=[NSNumber numberWithDouble:(b-2.0*w)];
+    id cval=[NSNumber numberWithDouble:(c +(w-b) *d.x +d.y)];
+    [coefficients setObject:bval forKey:bindKey[1]];//b
+    [coefficients setObject:cval forKey:bindKey[2]];//c
+    [self setCoefficients:coefficients];//KVC & redraw
+    /*改变模型值*/
+    [bindObj[1] setValue:bval forKey:bindKey[1]];//b
+    [bindObj[2] setValue:cval forKey:bindKey[2]];//c
+}
+-(void)mouseDown:(NSEvent *)event{
+    /*捕捉鼠标拖拽并移动图*/
+    NSPoint p,prev,delta;
+    const NSUInteger DRAG_MASK=(NSEventMaskLeftMouseUp | NSEventMaskLeftMouseDragged);
+    double scale =(XY_MAX *2.0) / [self frame].size.width;
+    
+    p=[event locationInWindow];
+    prev=[self convertPoint:p toView:nil];/*View based point*/
+    for(;;){
+        event=[[self window]nextEventMatchingMask:DRAG_MASK];
+        if([event type] ==NSLeftMouseUp)
+            break;
+        p=[event locationInWindow];
+        p=[self convertPoint:p toView:nil];
+        delta.x=scale *(p.x -prev.x);
+        delta.y=scale*(p.y-prev.y);
+        [self moveGraph:delta];
+        prev=p;
+    }
+}
+
+-(void)bind:(NSString *)binding toObject:(id)obsvObj withKeyPath:(NSString *)keyPath options:(NSDictionary *)options{
+    int i;
+    for(i=0;i<COEFFS;i++){
+        if([binding isEqualToString:BindKeys[i]])
+            break;
+    }
+    if(i<COEFFS){
+        [obsvObj addObserver:self selector:keyPath options:NSKeyValueObservingOptionNew
+                     context:(__bridge void *)BindKeys[i]];
+        bindKey[i] =keyPath;
+        bindKey[i] =obsvObj;
+    }else{
+        [super bind:binding toObject:obsvObj withKeyPath:keyPath options:options];
+    }
+}
+-(void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context{
+    int i;
+    for(i=0;i<COEFFS;i++)
+        if(context ==(__bridge void *)BindKeys[i])
+            break;
+    if(i<COEFFS){
+        [coefficients setObject:[object valueForKey:keyPath] forKey:BindKeys[i]];
+        [self setCoefficients:coefficients];//KVC & redraw
+    }
+    else{
+        [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
+    }
+    
+}
+@end
+
+像这样，从自定义视图改变模型值时，将最初绑定时获得的模型属性，用键值编码更新就可以了，而控制器中绑定的其他组件也会收到改变的通知，这样就实现了更新值共享
+通过对该软件加以改良，就可以很容易地根据系数值酸楚二次方程的根并将其显示出来，常见根据系数计算，显示根的对象，然后再和模型绑定就行了
+
+
+
+
+    """},
 ];
